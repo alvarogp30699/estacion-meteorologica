@@ -1,1 +1,34 @@
-{"updated": "2000-01-01T00:00:00+00:00", "zone": "Litoral sur de Tarragona", "alerts": []}
+{
+ "updated": "2026-11-14T17:43:59+00:00",
+ "zone": "Litoral sur de Tarragona",
+ "alerts": [
+  {
+   "level": "amarillo",
+   "event": "Tormentas",
+   "detail": "",
+   "onset": "2026-11-14T12:00:00+01:00",
+   "expires": "2026-11-14T19:59:59+01:00"
+  },
+  {
+   "level": "amarillo",
+   "event": "Tormentas",
+   "detail": "",
+   "onset": "2026-11-14T16:00:00+01:00",
+   "expires": "2026-11-14T19:59:59+01:00"
+  },
+  {
+   "level": "amarillo",
+   "event": "Lluvias",
+   "detail": "Precipitación acumulada en 12 horas: 60 mm",
+   "onset": "2026-11-14T16:00:00+01:00",
+   "expires": "2026-11-14T19:59:59+01:00"
+  },
+  {
+   "level": "naranja",
+   "event": "Lluvias",
+   "detail": "Precipitación acumulada en una hora: 40 mm",
+   "onset": "2026-11-14T16:00:00+01:00",
+   "expires": "2026-11-14T19:59:59+01:00"
+  }
+ ]
+}
