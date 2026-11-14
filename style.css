@@ -254,8 +254,9 @@ button { font-family: inherit; }
 .hour .p { font-size: 11px; color: #7FB6FF; margin-top: 3px; }
 
 /* Próximos 5 días */
-#days { padding: 8px; display: -webkit-flex; display: flex; -webkit-flex-shrink: 0; flex-shrink: 0; }
-.day { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; height: 52px; border-left: 1px solid #22304A; }
+#days { padding: 8px; display: -webkit-flex; display: flex; -webkit-flex-shrink: 0; flex-shrink: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#days::-webkit-scrollbar { display: none; }
+.day { -webkit-flex: 0 0 20%; flex: 0 0 20%; box-sizing: border-box; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; height: 52px; border-left: 1px solid #22304A; }
 .day:first-child { border-left: 0; }
 .day svg { width: 30px; height: 30px; }
 .day .tx { margin-left: 10px; }

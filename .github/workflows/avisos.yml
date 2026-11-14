@@ -18,15 +18,22 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Descargar y filtrar avisos
+      - name: Avisos (MeteoAlarm, sin clave)
         env:
           ZONAS: "Litoral sur de Tarragona|Litoral sud de Tarragona"
         run: python3 tools/avisos.py
+      - name: Estación de AEMET (necesita el secreto AEMET_API_KEY)
+        continue-on-error: true
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          ESTACION: "0016A"
+          ESTACION_NOMBRE: "Reus aeropuerto"
+        run: python3 tools/observacion.py
       - name: Guardar si ha cambiado
         run: |
-          if git diff --quiet -- avisos.json; then echo "Nada que guardar"; exit 0; fi
+          git add -A avisos.json observacion.json 2>/dev/null || true
+          if git diff --cached --quiet; then echo "Nada que guardar"; exit 0; fi
           git config user.name "avisos-bot"
           git config user.email "avisos-bot@users.noreply.github.com"
-          git add avisos.json
-          git commit -m "Avisos AEMET $(date -u +%H:%M)"
+          git commit -m "Datos AEMET $(date -u +%H:%M)"
           git push

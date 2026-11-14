@@ -40,7 +40,13 @@
     seaEveryMin: C.seaEveryMin || 30,
     alertsEveryMin: C.alertsEveryMin || 10,
     alertsUrl: def(C.alertsUrl, 'avisos.json'),
-    autoplay: C.autoplay !== false,
+    autoplay: C.autoplay === true,
+    playLoops: C.playLoops || 3,
+    obsUrl: def(C.obsUrl, 'observacion.json'),
+    obsMaxAgeMin: C.obsMaxAgeMin || 120,
+    sound: C.sound !== false,
+    soundVolume: def(C.soundVolume, 0.25),
+    days: C.days || 8,
     frameMs: C.frameMs || 700,
     fcFrameMs: C.fcFrameMs || 450,
     pauseLastMs: C.pauseLastMs || 2000,
@@ -186,7 +192,7 @@
       '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset,uv_index_max,wind_gusts_10m_max,wind_speed_10m_max,wind_direction_10m_dominant' +
       '&minutely_15=precipitation&past_minutely_15=1&forecast_minutely_15=8' +
       '&past_hours=24&forecast_hours=120' +
-      '&wind_speed_unit=kmh&timezone=auto&forecast_days=5';
+      '&wind_speed_unit=kmh&timezone=auto&forecast_days=' + cfg.days;
   }
 
   function hourIndex(h, cur) {
@@ -208,6 +214,7 @@
       Math.round(dl.temperature_2m_max[0]) + '° · Mín ' + Math.round(dl.temperature_2m_min[0]) + '°';
 
     renderNextHour(d);
+    checkSound();
 
     /* Viento y rachas */
     /* la flecha apunta hacia donde sopla el viento (la dirección en texto es de donde viene) */
@@ -230,6 +237,9 @@
       if (ht < nowHour) { fallen += mm; } else { expected += mm; }
     }
     $('rain').innerHTML = fmtNum(fallen, 1) + ' <span class="u">mm</span>';
+    rainSource = 'modelo';
+    var est = radarRainToday();
+    if (est !== null) { $('rain').innerHTML = (est > 0 && est < 0.1 ? '<0,1' : fmtNum(est, 1)) + ' <span class="u">mm</span>'; rainSource = 'radar'; }
     setSub('rain-s', expected >= 0.1 ? 'Prevista +' + mmTxt(expected) + ' mm' : 'Sin más lluvia hoy', 'blue');
 
     /* Presión y tendencia en 3 h */
@@ -243,6 +253,8 @@
       else { setSub('press-s', '→ Estable', ''); }
     }
 
+    var measured = applyObsStation();
+    $('rain-l').textContent = rainSource === 'estación' ? 'Llovido hoy' : (rainSource === 'radar' ? 'Llovido hoy · radar' : 'Llovido hoy · modelo');
     renderSun(dl);
     renderEvening(d);
     renderHours(d, idx);
@@ -251,6 +263,7 @@
     fixMapSize();
   }
 
+  var rainSource = 'modelo';
   function setSub(id, html, cls) {
     var el = $(id);
     el.innerHTML = html;
@@ -281,7 +294,12 @@
     /* el radar manda sobre el modelo si ve lluvia encima ahora mismo */
     if (radarHere && radarHere.wet && now().getTime() / 1000 - radarHere.time < 30 * 60 && steps[0] < WET) {
       el.className = 'nh wet';
-      el.innerHTML = icon + '<b>Lloviendo ahora</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarHere.level] + ', según el radar</span>';
+      el.innerHTML = icon + '<b>Lloviendo ahora</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarHere.level] + ' · radar</span>';
+      return;
+    }
+    if (radarEta && Date.now() / 1000 - radarEta.time < 20 * 60 && steps[0] < WET) {
+      el.className = 'nh wet';
+      el.innerHTML = icon + '<b>Lluvia en ~' + radarEta.minutes + ' min</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarEta.level] + ' · radar</span>';
       return;
     }
     if (steps[0] >= WET) {
@@ -442,7 +460,7 @@
 
   function renderDays(dl) {
     var html = '';
-    for (var j = 0; j < 5 && j < dl.time.length; j++) {
+    for (var j = 0; j < cfg.days && j < dl.time.length; j++) {
       var date = parseLocal(dl.time[j] + 'T12:00');
       var dw = wmo(dl.weather_code[j], 1);
       var dp = dl.precipitation_probability_max[j];
@@ -505,7 +523,7 @@
 
     var title = j === 0 ? 'Hoy' : (j === 1 ? 'Mañana' : DOW_LONG[date.getDay()].charAt(0).toUpperCase() + DOW_LONG[date.getDay()].slice(1));
     $('daypanel').innerHTML = '<div class="dp-box">' +
-      '<div class="dp-head">' + svgIcon(dw.kind) + '<div class="dp-t"><div class="dp-n">' + title + ' · ' + DOW_LONG[date.getDay()] + ' ' + date.getDate() + ' de ' + MONTHS[date.getMonth()] + '</div>' +
+      '<div class="dp-head">' + svgIcon(dw.kind) + '<div class="dp-t"><div class="dp-n">' + (j < 2 ? title + ' · ' + DOW_LONG[date.getDay()] : title) + ' ' + date.getDate() + ' de ' + MONTHS[date.getMonth()] + '</div>' +
       '<div class="dp-c">' + dw.label + ' · <b>' + Math.round(d.temperature_2m_max[j]) + '°</b> <span>' + Math.round(d.temperature_2m_min[j]) + '°</span></div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
       '<div class="dp-facts">' + fh + '</div>' +
@@ -555,6 +573,44 @@
     if (!c) { return; }
     $('sea').innerHTML = (c.sea_surface_temperature == null ? '--' : Math.round(c.sea_surface_temperature)) + '° <span class="u">agua</span>';
     setSub('sea-s', c.wave_height == null ? '&nbsp;' : 'Olas ' + fmtNum(c.wave_height, 1) + ' m' + (c.wave_direction == null ? '' : ' · ' + compass(c.wave_direction)), c.wave_height >= 2 ? 'warn' : '');
+  }
+
+  /* ======================= Estación de AEMET (datos medidos) ======================= */
+  /* observacion.json lo genera la tarea de GitHub si el repositorio tiene la clave AEMET_API_KEY */
+  var OBS = null;
+  function loadObs() {
+    if (cfg.demo || !cfg.obsUrl) { return; }
+    var sep = cfg.obsUrl.indexOf('?') < 0 ? '?' : '&';
+    getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { OBS = d; if (W) { renderWeather(W); } updateStatus(); }, function () { OBS = null; });
+  }
+  function obsFresh() {
+    if (!OBS || !OBS.time) { return false; }
+    var t = new Date(OBS.time);
+    return Date.now() - t.getTime() < cfg.obsMaxAgeMin * 60000 && sameDay(t, now());
+  }
+  /* Sustituye lo que da el modelo por lo medido en la estación */
+  function applyObsStation() {
+    if (!obsFresh()) { return false; }
+    var o = OBS;
+    if (o.temp != null) {
+      $('temp').textContent = Math.round(o.temp) + '°';
+      /* sensación: la del modelo corregida con la diferencia entre lo medido y lo previsto */
+      var wc = W && W.current, dl = W && W.daily;
+      if (wc && dl) {
+        $('range').textContent = 'Sensación ' + Math.round(wc.apparent_temperature + (o.temp - wc.temperature_2m)) + '° · Máx ' +
+          Math.round(Math.max(dl.temperature_2m_max[0], o.temp)) + '° · Mín ' + Math.round(Math.min(dl.temperature_2m_min[0], o.temp)) + '°';
+      }
+    }
+    if (o.wind != null) {
+      var dir = o.dir != null && o.dir <= 360 ? o.dir : null;
+      $('wind').innerHTML = (dir != null ? '<svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="#5EC8FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="-webkit-transform: rotate(' + ((dir + 180) % 360) + 'deg); transform: rotate(' + ((dir + 180) % 360) + 'deg)"><path d="M12 4v16M6 10l6-6 6 6"/></svg>' : '') +
+        Math.round(o.wind) + ' <span class="u">km/h' + (dir != null ? ' ' + compass(dir) : '') + '</span>';
+      if (o.gust != null) { setSub('wind-s', 'Rachas ' + Math.round(o.gust) + ' km/h', o.gust >= 50 ? 'warn' : ''); }
+    }
+    if (o.hum != null) { $('hum').innerHTML = Math.round(o.hum) + ' <span class="u">%</span>'; }
+    if (o.pressure != null) { $('press').innerHTML = Math.round(o.pressure) + ' <span class="u">hPa</span>'; }
+    if (o.rain_today != null) { $('rain').innerHTML = fmtNum(o.rain_today, 1) + ' <span class="u">mm</span>'; rainSource = 'estación'; }
+    return true;
   }
 
   /* ======================= Avisos de AEMET ======================= */
@@ -615,6 +671,7 @@
       return;
     }
 
+    checkAlertSound(list);
     var a = list[0], rest = list.length - 1, more = '';
     if (rest === 1) { more = '+1 aviso ' + list[1].level; }
     else if (rest > 1) { more = '+' + rest + ' avisos'; }
@@ -839,7 +896,7 @@
   }
   function hm(t) { var p = String(t).split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1] || 0, 10); }
 
-  var waited = 0;
+  var waited = 0, loops = 0;
   function schedule() {
     clearTimeout(animTimer);
     if (!playing || frames.length < 2) { return; }
@@ -850,6 +907,11 @@
   }
   function advance() {
     var nxt = (cur + 1) % frames.length;
+    /* tras unas vueltas se para solo en la hora actual */
+    if (nxt === 0) {
+      loops++;
+      if (loops >= cfg.playLoops) { loops = 0; setPlaying(false); showFrame(obsFrames.length ? obsFrames.length - 1 : 0); return; }
+    }
     var nf = frames[nxt];
     var ln = nf && nf.kind === 'obs' ? getObsLayer(nf) : null;
     /* si el siguiente fotograma aún no ha cargado, espera hasta 3 s para no enseñar el mapa vacío */
@@ -860,6 +922,7 @@
   }
   function setPlaying(v) {
     playing = v;
+    if (v) { loops = 0; }
     setPlayIcon();
     if (playing) { schedule(); } else { clearTimeout(animTimer); }
   }
@@ -874,37 +937,142 @@
       radarFails = 0; updateStatus(); scheduleRadar();
     }, function () { radarFails++; updateStatus(); scheduleRadar(); });
   }
-  /* ¿Llueve ahora encima de la ubicación según el radar? Se lee el píxel del último fotograma (zoom 7).
-     Si el servidor no permite leer la imagen, se ignora y manda el modelo. */
-  var radarHere = null;
-  function checkRadarHere() {
-    if (cfg.demo || !obsFrames.length || !radarHost) { return; }
-    var f = obsFrames[obsFrames.length - 1], z = 7, n = Math.pow(2, z);
-    var latR = cfg.lat * Math.PI / 180;
+  /* ---- Análisis del radar alrededor de la ubicación (zoom 7, 3×3 teselas = 768 px, ~0,9 km por píxel) ----
+     · si llueve ahora encima, · si una zona de lluvia se acerca y en cuántos minutos llegaría,
+     · y un acumulado aproximado del día.  Si el navegador no puede leer las imágenes, se ignora. */
+  var radarHere = null, radarEta = null, radarOk = false;
+  var CELL = 6, GN = 128; // celdas de 6 px → rejilla 128×128 (~5,5 km por celda)
+  function tilePos() {
+    var z = 7, n = Math.pow(2, z), latR = cfg.lat * Math.PI / 180;
     var fx = (cfg.lon + 180) / 360 * n, fy = (1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n;
-    var tx = Math.floor(fx), ty = Math.floor(fy), px = Math.floor((fx - tx) * 256), py = Math.floor((fy - ty) * 256);
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = function () {
-      try {
-        var cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
-        var ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
-        var x0 = Math.max(0, px - 2), y0 = Math.max(0, py - 2);
-        var d = ctx.getImageData(x0, y0, Math.min(5, 256 - x0), Math.min(5, 256 - y0)).data;
-        var wet = 0, level = 0;
-        for (var i = 0; i < d.length; i += 4) {
-          if (d[i + 3] > 40) {
-            wet++;
-            var r = d[i], g = d[i + 1];
-            level = Math.max(level, r > 180 && g < 140 ? 3 : (r > 180 ? 2 : 1));
+    var tx = Math.floor(fx), ty = Math.floor(fy);
+    return { z: z, tx: tx, ty: ty, cx: 256 + Math.floor((fx - tx) * 256), cy: 256 + Math.floor((fy - ty) * 256) };
+  }
+  function loadMosaic(f, tp, done) {
+    var cv = document.createElement('canvas'); cv.width = 768; cv.height = 768;
+    var ctx = cv.getContext('2d'), left = 9, failed = false;
+    function one(dx, dy) {
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { ctx.drawImage(img, (dx + 1) * 256, (dy + 1) * 256); if (--left === 0 && !failed) { finish(); } };
+      img.onerror = function () { if (!failed) { failed = true; done(null); } };
+      img.src = radarHost + f.path + '/256/' + tp.z + '/' + (tp.tx + dx) + '/' + (tp.ty + dy) + '/' + RADAR_COLOR + '/1_0.png';
+    }
+    function finish() {
+      try { done(ctx.getImageData(0, 0, 768, 768).data); } catch (e) { done(null); }
+    }
+    for (var dy = -1; dy <= 1; dy++) { for (var dx = -1; dx <= 1; dx++) { one(dx, dy); } }
+  }
+  function pixLevel(d, o) {
+    if (d[o + 3] <= 40) { return 0; }
+    var r = d[o], g = d[o + 1];
+    return r > 180 && g < 140 ? 3 : (r > 180 ? 2 : 1);
+  }
+  /* rejilla de celdas: nivel máximo si al menos un tercio de la celda tiene eco */
+  function toGrid(d) {
+    var g = new Uint8Array(GN * GN);
+    for (var gy = 0; gy < GN; gy++) {
+      for (var gx = 0; gx < GN; gx++) {
+        var wet = 0, mx = 0;
+        for (var y = gy * CELL; y < gy * CELL + CELL; y += 2) {
+          for (var x = gx * CELL; x < gx * CELL + CELL; x += 2) {
+            var l = pixLevel(d, (y * 768 + x) * 4); if (l) { wet++; if (l > mx) { mx = l; } }
           }
         }
-        radarHere = { time: f.time, wet: wet >= 3, level: level };
-      } catch (e) { radarHere = null; }
-      if (W) { renderNextHour(W); }
-    };
-    img.onerror = function () { radarHere = null; };
-    img.src = radarHost + f.path + '/256/' + z + '/' + tx + '/' + ty + '/' + RADAR_COLOR + '/1_0.png';
+        g[gy * GN + gx] = wet >= 3 ? mx : 0;
+      }
+    }
+    return g;
+  }
+  function analyzeRadar() {
+    if (cfg.demo || obsFrames.length < 4 || !radarHost) { return; }
+    /* se compara con el fotograma de hace ~60 min (o el más antiguo) para medir mejor la velocidad */
+    var tp = tilePos(), fNew = obsFrames[obsFrames.length - 1], fOld = obsFrames[Math.max(0, obsFrames.length - 7)];
+    loadMosaic(fNew, tp, function (dNew) {
+      if (!dNew) { radarOk = false; return; }
+      /* lluvia encima ahora (5×5 px alrededor) */
+      var wet = 0, lv = 0;
+      for (var y = tp.cy - 2; y <= tp.cy + 2; y++) { for (var x = tp.cx - 2; x <= tp.cx + 2; x++) { var l = pixLevel(dNew, (y * 768 + x) * 4); if (l) { wet++; lv = Math.max(lv, l); } } }
+      radarHere = { time: fNew.time, wet: wet >= 3, level: lv };
+      radarOk = true;
+      accumulate(radarHere);
+      loadMosaic(fOld, tp, function (dOld) {
+        radarEta = dOld ? eta(toGrid(dOld), toGrid(dNew), tp, (fNew.time - fOld.time) / 60) : null;
+        if (W) { renderWeather(W); }
+        checkSound();
+      });
+      if (W) { renderWeather(W); }
+    });
+  }
+  /* desplazamiento que mejor encaja el fotograma viejo con el nuevo → velocidad → ¿llega aquí y cuándo? */
+  function eta(gOld, gNew, tp, minutes) {
+    var nOld = 0, nNew = 0, k;
+    for (k = 0; k < gOld.length; k++) { if (gOld[k]) { nOld++; } if (gNew[k]) { nNew++; } }
+    if (nOld < 8 || nNew < 8) { return null; }
+    var R = 12;
+    function score(sx, sy) {
+      var sc = 0;
+      for (var y = Math.max(0, -sy); y < GN - Math.max(0, sy); y++) {
+        var ro = y * GN, rn = (y + sy) * GN + sx;
+        for (var x = Math.max(0, -sx); x < GN - Math.max(0, sx); x++) { if (gOld[ro + x] && gNew[rn + x]) { sc++; } }
+      }
+      return sc;
+    }
+    var best = -1, bx = 0, by = 0;
+    for (var sy = -R; sy <= R; sy += 2) {           // búsqueda gruesa cada 2 celdas…
+      for (var sx = -R; sx <= R; sx += 2) {
+        var sc = score(sx, sy);
+        if (sc > best || (sc === best && sx * sx + sy * sy < bx * bx + by * by)) { best = sc; bx = sx; by = sy; }
+      }
+    }
+    var cx0 = bx, cy0 = by;                           // …y fina alrededor del mejor
+    for (sy = cy0 - 1; sy <= cy0 + 1; sy++) {
+      for (sx = cx0 - 1; sx <= cx0 + 1; sx++) {
+        sc = score(sx, sy);
+        if (sc > best) { best = sc; bx = sx; by = sy; }
+      }
+    }
+    if (best < Math.min(nOld, nNew) * 0.3) { return null; }
+    /* ajuste por debajo de una celda (parábola sobre los vecinos) */
+    function sub(a, b0, c) { var den = a - 2 * b0 + c; return den < 0 ? Math.max(-0.5, Math.min(0.5, (a - c) / (2 * den))) : 0; }
+    var fxs = bx + sub(score(bx - 1, by), best, score(bx + 1, by));
+    var fys = by + sub(score(bx, by - 1), best, score(bx, by + 1));
+    bx = fxs; by = fys;
+    var vx = bx / minutes, vy = by / minutes;           // celdas por minuto
+    if (vx * vx + vy * vy < 0.0004) { return null; }    // casi quieta
+    var cx = tp.cx / CELL, cy = tp.cy / CELL;
+    for (var t = 5; t <= 60; t += 5) {
+      var lvl = 0;
+      for (k = 0; k < gNew.length; k++) {
+        if (!gNew[k]) { continue; }
+        var px = (k % GN) + 0.5 + vx * t, py = Math.floor(k / GN) + 0.5 + vy * t;
+        if ((px - cx) * (px - cx) + (py - cy) * (py - cy) <= 1.2) { lvl = Math.max(lvl, gNew[k]); }
+      }
+      if (lvl) { return { minutes: t, level: lvl, time: Math.floor(Date.now() / 1000), speed: Math.round(Math.sqrt(vx * vx + vy * vy) * CELL * 0.92 * 60) }; }
+    }
+    return null;
+  }
+  /* acumulado del día con el radar (solo mientras la app está abierta) */
+  var ACC_KEY = 'estacion-radar-acum';
+  function accumulate(h) {
+    var d = now(), key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(), a;
+    try { a = JSON.parse(localStorage.getItem(ACC_KEY) || 'null'); } catch (e) { a = null; }
+    if (!a || a.day !== key) { a = { day: key, mm: 0, last: 0, since: d.getTime() }; }
+    if (a.last && h.time > a.last) {
+      var mins = Math.min(15, (h.time - a.last) / 60);
+      a.mm += [0, 1, 4, 15][h.wet ? h.level : 0] * mins / 60;
+    }
+    if (!a.last || h.time > a.last) { a.last = h.time; }
+    try { localStorage.setItem(ACC_KEY, JSON.stringify(a)); } catch (e2) { /* sin almacenamiento */ }
+  }
+  /* devuelve el acumulado del radar si ha cubierto casi todo el día (desde antes de las 01:00), si no null */
+  function radarRainToday() {
+    if (!radarOk) { return null; }
+    var a, d = now();
+    try { a = JSON.parse(localStorage.getItem(ACC_KEY) || 'null'); } catch (e) { return null; }
+    if (!a || a.day !== d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate()) { return null; }
+    var since = new Date(a.since);
+    return since.getHours() < 1 ? a.mm : null;
   }
 
   function applyObs(host, list) {
@@ -914,7 +1082,7 @@
     radarHost = host;
     obsFrames = list;
     rebuildFrames();
-    checkRadarHere();
+    analyzeRadar();
   }
 
   /* ---- Previsión +24 h: rejilla de puntos de Open-Meteo pintada en el navegador ---- */
@@ -1018,7 +1186,7 @@
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
       var txt = min < 1 ? 'ahora' : 'hace ' + min + ' min';
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
-      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + radarTxt; }
+      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station + ' a las ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
     }
     if (frames.length) { showFrame(cur); }
   }
@@ -1049,6 +1217,53 @@
       var c = JSON.parse(raw);
       if (c && c.data && Date.now() - c.t < 6 * 3600 * 1000) { renderWeather(c.data); lastOk = c.t; updateStatus(); }
     } catch (e) { /* caché inválida */ }
+  }
+
+  /* ======================= Sonido ======================= */
+  /* Los navegadores solo dejan sonar después de un primer toque en la pantalla */
+  var actx = null, lastRainState = null;
+  function unlockAudio() {
+    if (!cfg.sound) { return; }
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!actx && AC) { actx = new AC(); }
+      if (actx && actx.state === 'suspended') { actx.resume(); }
+    } catch (e) { actx = null; }
+  }
+  function chime(kind) {
+    if (!cfg.sound || !actx || isNight()) { return; }
+    try {
+      var notes = kind === 'alert' ? [880, 660, 880] : [660, 880];
+      var t0 = actx.currentTime + 0.05;
+      for (var i = 0; i < notes.length; i++) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'sine'; o.frequency.value = notes[i];
+        g.gain.setValueAtTime(0, t0 + i * 0.28);
+        g.gain.linearRampToValueAtTime(cfg.soundVolume, t0 + i * 0.28 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.28 + 0.6);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t0 + i * 0.28); o.stop(t0 + i * 0.28 + 0.65);
+      }
+    } catch (e) { /* sin sonido */ }
+  }
+  /* suena cuando empieza a llover (o va a llover en ≤30 min) y cuando entra un aviso nuevo */
+  function checkSound() {
+    var nh = $('nexthour'), wetSoon = nh.className.indexOf('wet') >= 0 && (/Lloviendo/.test(nh.textContent) || (/Lluvia en ~(\d+)/.test(nh.textContent) && +RegExp.$1 <= 30));
+    if (lastRainState === false && wetSoon) { chime('rain'); }
+    lastRainState = wetSoon;
+  }
+  var SEEN_KEY = 'estacion-avisos-vistos';
+  function checkAlertSound(list) {
+    var seen = {};
+    try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch (e) { seen = {}; }
+    var isNew = false, keep = {};
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i].level + '|' + list[i].event + '|' + list[i].onset;
+      keep[id] = 1;
+      if (!seen[id]) { isNew = true; }
+    }
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(keep)); } catch (e2) { /* sin almacenamiento */ }
+    if (isNew && AL && !cfg.demo) { chime('alert'); }
   }
 
   /* ======================= Modo noche y recarga diaria ======================= */
@@ -1082,7 +1297,7 @@
     var storm = cfg.demoAlert === 'naranja' || cfg.demoAlert === 'rojo';
     var H = now().getHours();
     var time = [], temp = [], prob = [], prec = [], code = [], isDay = [], pres = [], cape = [], wsp = [];
-    for (var hh = -24; hh < 120; hh++) {
+    for (var hh = -24; hh < 192; hh++) {
       var d = new Date(2026, 10, 14, hh);
       time.push(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':00');
       var hr = d.getHours();
@@ -1110,13 +1325,13 @@
       minutely_15: { time: mt, precipitation: mp },
       hourly: { time: time, temperature_2m: temp, precipitation_probability: prob, precipitation: prec, weather_code: code, is_day: isDay, pressure_msl: pres, cape: cape, wind_speed_10m: wsp },
       daily: {
-        time: ['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18'],
-        weather_code: [storm ? 95 : 2, 61, 3, 0, 0],
-        temperature_2m_max: [20, 19, 18, 19, 21], temperature_2m_min: [12, 13, 11, 10, 11],
-        precipitation_probability_max: [storm ? 90 : 40, 70, 20, 0, 0], precipitation_sum: [storm ? 36 : 4, 6.2, 0, 0, 0],
-        sunrise: ['2026-11-14T07:51', '2026-11-15T07:52', '2026-11-16T07:53', '2026-11-17T07:54', '2026-11-18T07:55'],
-        sunset: ['2026-11-14T17:38', '2026-11-15T17:37', '2026-11-16T17:36', '2026-11-17T17:36', '2026-11-18T17:35'],
-        uv_index_max: [2.1, 1.8, 2.4, 2.6, 2.5], wind_gusts_10m_max: [storm ? 75 : 35, 45, 30, 25, 28], wind_speed_10m_max: [storm ? 40 : 18, 24, 15, 12, 14], wind_direction_10m_dominant: [45, 90, 315, 300, 330]
+        time: ['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'],
+        weather_code: [storm ? 95 : 2, 61, 3, 0, 0, 2, 61, 3],
+        temperature_2m_max: [20, 19, 18, 19, 21, 20, 17, 16], temperature_2m_min: [12, 13, 11, 10, 11, 12, 11, 9],
+        precipitation_probability_max: [storm ? 90 : 40, 70, 20, 0, 0, 10, 60, 30], precipitation_sum: [storm ? 36 : 4, 6.2, 0, 0, 0, 0, 3.1, 0.4],
+        sunrise: ['2026-11-14T07:51', '2026-11-15T07:52', '2026-11-16T07:53', '2026-11-17T07:54', '2026-11-18T07:55', '2026-11-19T07:56', '2026-11-20T07:57', '2026-11-21T07:58'],
+        sunset: ['2026-11-14T17:38', '2026-11-15T17:37', '2026-11-16T17:36', '2026-11-17T17:36', '2026-11-18T17:35', '2026-11-19T17:34', '2026-11-20T17:34', '2026-11-21T17:33'],
+        uv_index_max: [2.1, 1.8, 2.4, 2.6, 2.5, 2.3, 1.5, 2], wind_gusts_10m_max: [storm ? 75 : 35, 45, 30, 25, 28, 30, 50, 40], wind_speed_10m_max: [storm ? 40 : 18, 24, 15, 12, 14, 15, 28, 20], wind_direction_10m_dominant: [45, 90, 315, 300, 330, 300, 90, 0]
       }
     };
   }
@@ -1214,6 +1429,7 @@
     loadForecastGrid();
     loadSea();
     loadAlerts();
+    loadObs();
 
     $('play').onclick = function () { setPlaying(!playing); touchFull(); };
     $('fullclose').onclick = exitFull;
@@ -1247,10 +1463,13 @@
     setInterval(loadForecastGrid, cfg.forecastEveryMin * 60000);
     setInterval(loadSea, cfg.seaEveryMin * 60000);
     setInterval(loadAlerts, cfg.alertsEveryMin * 60000);
+    setInterval(loadObs, 10 * 60000);
     minuteTick();
     if (cfg.demo) { demoBar(); }
     document.addEventListener('touchstart', wakeFromNight, false);
     document.addEventListener('mousedown', wakeFromNight, false);
+    document.addEventListener('touchstart', unlockAudio, false);
+    document.addEventListener('mousedown', unlockAudio, false);
 
     keepAwake();
     document.addEventListener('visibilitychange', function () {

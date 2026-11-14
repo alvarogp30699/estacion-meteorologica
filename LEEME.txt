@@ -21,6 +21,14 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    Nota: GitHub puede pausar las tareas programadas de un repositorio sin actividad durante
    60 días; si ves "Avisos de AEMET sin actualizar", entra en Actions y reactívala.
 
+   DATOS MEDIDOS DE LA ESTACIÓN DE AEMET (Reus aeropuerto), opcional pero recomendado:
+   e) Pide la clave gratuita en https://opendata.aemet.es/centrodedescargas/altaUsuario
+      (te llega por correo).
+   f) En GitHub: Settings -> Secrets and variables -> Actions -> New repository secret.
+      Nombre: AEMET_API_KEY   Valor: la clave que te ha llegado.
+   Con eso, la misma tarea guarda observacion.json y la pantalla usa temperatura, humedad,
+   viento, presión y lluvia caída MEDIDAS en lugar de las del modelo.
+
    Otras opciones (Netlify, Cloudflare Pages) sirven para la web, pero no ejecutan la tarea
    de avisos: en ese caso pon alertsUrl: '' en config.js.
 
@@ -51,7 +59,13 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    - De 23:00 a 07:00 se atenúa la pantalla (un toque la ilumina 1 minuto).
      El velo es por software: el brillo real de la pantalla lo controla el kiosko o Android.
    - Cada día a las 04:00 se recarga sola para liberar memoria.
+   - El radar está quieto en la hora actual; con el play da 3 vueltas y vuelve solo.
    - Toca el mapa para ampliar el radar (con zoom); vuelve solo a los 30 s.
+   - Toca un día de la previsión para ver su detalle (la fila tiene 8 días, deslízala).
+   - Sonido al empezar a llover o con un aviso nuevo. El navegador solo deja sonar después
+     de tocar la pantalla una vez tras cargar (también tras la recarga de las 04:00).
+   - Lluvia en la próxima hora: primero el radar (si llueve encima o se acerca una zona de
+     lluvia, calcula en cuántos minutos llega); si no, el modelo.
    - Desde las 20:00 la tarjeta «Mañana» sustituye a Mar y Sol; de noche sale la fase lunar.
 
 DATOS

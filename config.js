@@ -23,8 +23,21 @@ window.CONFIG = {
   // Si la web está en el mismo GitHub Pages, basta con 'avisos.json'. Pon '' para quitar los avisos.
   alertsUrl: 'avisos.json',
 
+  // Datos medidos en la estación de AEMET (Reus aeropuerto). Los genera la misma tarea si el
+  // repositorio tiene el secreto AEMET_API_KEY. Sin él, se usa el modelo y el radar.
+  obsUrl: 'observacion.json',
+  obsMaxAgeMin: 120,     // si el último dato tiene más de 2 h, se ignora
+
+  // Sonido al empezar a llover o con un aviso nuevo (necesita un toque en la pantalla tras cargar)
+  sound: true,
+  soundVolume: 0.25,
+
+  // Días de previsión (se desliza la fila con el dedo; caben 5 a la vista)
+  days: 8,
+
   // Animación del radar
-  autoplay: true,        // false = empieza en pausa, en el último fotograma
+  autoplay: false,       // false = quieto en la hora actual; dale al play para animarlo
+  playLoops: 3,          // al darle al play da estas vueltas y vuelve solo a la hora actual
   frameMs: 700,          // ms por fotograma observado (cada 10 min)
   fcFrameMs: 450,        // ms por fotograma de previsión (cada hora)
   pauseLastMs: 2000,     // pausa en "ahora" y al final
