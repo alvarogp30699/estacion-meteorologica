@@ -2581,6 +2581,59 @@
 
   /* ======================= Ubicaciones: buscador y favoritos ======================= */
   var HOME = { name: cfg.name, lat: cfg.lat, lon: cfg.lon, sub: 'Casa' }, isHome = true, awayTimer = null;
+
+  /* ======================= Mi ubicación (GPS) ======================= */
+  /* En el móvil o el PC se usa por defecto la ubicación del dispositivo; la tablet fija sigue en casa */
+  var GPSLOC = null, curIsGps = false, gpsBusy = false;
+  function isFixedTablet() { return !!window.fully || /Android [4-7]/.test(navigator.userAgent); }
+  function gpsAuto() {
+    var v = null; try { v = localStorage.getItem('estacion-gps'); } catch (e) { v = null; }
+    if (v === '1') { return true; } if (v === '0') { return false; }
+    return !isFixedTablet() && !cfg.demo;
+  }
+  function setGpsAuto(on) { try { localStorage.setItem('estacion-gps', on ? '1' : '0'); } catch (e) { /* nada */ } }
+  function locateMe(apply, done) {
+    if (!navigator.geolocation || gpsBusy) { if (done) { done(false, 'Este navegador no permite saber la ubicación'); } return; }
+    gpsBusy = true;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      gpsBusy = false;
+      var la = Math.round(pos.coords.latitude * 1000) / 1000, lo = Math.round(pos.coords.longitude * 1000) / 1000;
+      var l = { name: 'Mi ubicación', lat: la, lon: lo, sub: 'Ubicación del dispositivo', gps: true };
+      GPSLOC = l;
+      try { var old = JSON.parse(localStorage.getItem('estacion-gps-last') || 'null'); if (old && Math.abs(old.lat - la) < 0.02 && Math.abs(old.lon - lo) < 0.02) { l.name = old.name; } } catch (e) { /* nada */ }
+      if (apply) { setLocation(l); }
+      if (done) { done(true); }
+      /* nombre del sitio (servicio gratuito sin clave) */
+      getJSON('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + la + '&longitude=' + lo + '&localityLanguage=es', function (r) {
+        var nm = r && (r.city || r.locality || r.principalSubdivision);
+        if (!nm) { return; }
+        l.name = nm; l.sub = 'Ubicación del dispositivo' + (r.principalSubdivision && r.principalSubdivision !== nm ? ' · ' + r.principalSubdivision : '');
+        try { localStorage.setItem('estacion-gps-last', JSON.stringify({ name: nm, lat: la, lon: lo })); } catch (e) { /* nada */ }
+        if (curIsGps && Math.abs(cfg.lat - la) < 0.001 && Math.abs(cfg.lon - lo) < 0.001) {
+          cfg.name = nm; $('place').innerHTML = '<span class="gps-ic">➤</span>' + esc(nm); document.title = nm + ' · Estación meteorológica';
+          if (pinMarker) { var el = pinMarker.getElement() && pinMarker.getElement().querySelector('.name'); if (el) { el.textContent = nm; } }
+        }
+        if ($('loc-gps')) { renderGpsRow(); }
+      }, function () { /* sin nombre: se queda «Mi ubicación» */ });
+    }, function (err) {
+      gpsBusy = false;
+      if (done) { done(false, err && err.code === 1 ? 'Permiso de ubicación denegado (actívalo en los ajustes del navegador)' : 'No se pudo obtener la ubicación'); }
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60000 });
+  }
+  function renderGpsRow(msg) {
+    var box = $('loc-gps'); if (!box) { return; }
+    var on = gpsAuto();
+    box.innerHTML = '<div class="loc-row' + (curIsGps ? ' cur' : '') + '" id="gps-row"><span class="loc-ic">➤</span><div class="loc-tx"><div class="loc-n">' + (GPSLOC ? esc(GPSLOC.name) : 'Mi ubicación') + '</div><div class="loc-s">' +
+      (msg ? esc(msg) : (gpsBusy ? 'Buscando…' : 'Ubicación del dispositivo' + (curIsGps ? ' · viendo ahora' : ''))) + '</div></div>' +
+      (GPSLOC ? '<button type="button" class="loc-star' + (findFav(getFavs(), GPSLOC) ? ' on' : '') + '" data-gpsfav="1" aria-label="Guardar en favoritos">' + (findFav(getFavs(), GPSLOC) ? '★' : '☆') + '</button>' : '') + '</div>' +
+      '<label class="gps-auto"><input type="checkbox" id="gps-auto"' + (on ? ' checked' : '') + '> Abrir siempre con mi ubicación en este dispositivo</label>';
+    $('gps-row').onclick = function (ev) {
+      if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-gpsfav')) { if (GPSLOC) { toggleFav({ name: GPSLOC.name, lat: GPSLOC.lat, lon: GPSLOC.lon, sub: GPSLOC.sub }); renderGpsRow(); renderFavList(); } return; }
+      renderGpsRow('Buscando…');
+      locateMe(true, function (ok, why) { if (ok) { closeDay(); } else { renderGpsRow(why); } });
+    };
+    $('gps-auto').onchange = function () { setGpsAuto(this.checked); if (this.checked && !curIsGps) { locateMe(true); } };
+  }
   var FAV_KEY = 'estacion-favoritos';
   function getFavs() {
     var f = [];
@@ -2602,9 +2655,17 @@
     return !had;
   }
 
+  function kmBetween(a, b) {
+    var R = 6371, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lon - a.lon) * Math.PI / 180;
+    var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
   function setLocation(l) {
-    isHome = Math.abs(l.lat - HOME.lat) < 0.01 && Math.abs(l.lon - HOME.lon) < 0.01;
-    cfg.name = isHome ? HOME.name : l.name; cfg.lat = +l.lat; cfg.lon = +l.lon;
+    /* a menos de 15 km de casa cuenta como casa (avisos de AEMET y estación de Reus siguen valiendo) */
+    isHome = kmBetween(l, HOME) < 15;
+    cfg.name = isHome && !l.gps ? HOME.name : l.name; cfg.lat = +l.lat; cfg.lon = +l.lon;
+    curIsGps = !!l.gps;
+    $('place').innerHTML = (curIsGps ? '<span class="gps-ic">➤</span>' : '') + esc(cfg.name);
     $('place').textContent = cfg.name;
     $('place-home').className = isHome ? '' : 'on';
     document.title = cfg.name + ' · Estación meteorológica';
@@ -2615,13 +2676,14 @@
     loadWeather(); loadForecastGrid(); loadSea(); loadAir(); loadNormals(); loadModels();
     analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
     clearTimeout(awayTimer);
-    if (!isHome && cfg.locReturnMin) { armAway(); }
+    if (!isHome && !curIsGps && cfg.locReturnMin) { armAway(); }
   }
   /* fuera de casa: vuelve sola a la ubicación principal tras unos minutos sin tocar */
   function armAway() {
     clearTimeout(awayTimer);
-    if (isHome || !cfg.locReturnMin) { return; }
-    awayTimer = setTimeout(function () { if (!isHome) { closeDay(); setLocation(HOME); } }, cfg.locReturnMin * 60000);
+    if (isHome || curIsGps || !cfg.locReturnMin) { return; }
+    /* vuelve a casa; en el móvil con «mi ubicación» activada, vuelve a donde estás */
+    awayTimer = setTimeout(function () { closeDay(); if (gpsAuto() && GPSLOC) { setLocation(GPSLOC); } else if (!isHome) { setLocation(HOME); } }, cfg.locReturnMin * 60000);
   }
 
   function locRow(l, kind) {
@@ -2655,16 +2717,19 @@
   function openLocations() {
     $('daypanel').innerHTML = '<div class="dp-box loc"><div class="dp-head"><div class="dp-t"><div class="dp-n">Ubicaciones</div><div class="dp-c">¿Qué sitio quieres ver?</div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
+      '<div id="loc-gps"></div>' +
       '<input id="loc-q" type="search" autocomplete="off" placeholder="Buscar ciudad o pueblo… (p. ej. Tarragona, Madrid)">' +
       '<div id="loc-res"></div><div class="al-k">Favoritos</div><div id="loc-favs"></div>' +
-      '<div class="dp-foot">' + (cfg.locReturnMin ? 'Si ves otro sitio, vuelve sola a ' + esc(HOME.name) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : '') + 'Los favoritos se guardan en este dispositivo</div></div>';
+      '<div class="dp-foot">' + (cfg.locReturnMin ? 'Si ves otro sitio, vuelve sola a ' + (gpsAuto() && GPSLOC ? 'tu ubicación' : esc(HOME.name)) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : '') + 'Los favoritos se guardan en este dispositivo</div></div>';
     renderFavList();
+    renderGpsRow();
     $('daypanel').className = 'on';
     clearTimeout(dayTimer);
     var q = $('loc-q');
     q.oninput = function () { clearTimeout(searchT); var v = this.value.replace(/^\s+|\s+$/g, ''); searchT = setTimeout(function () { searchPlaces(v); }, 400); };
   }
   function onLocClick(t) {
+    var g = t; while (g && g.id !== 'daypanel') { if (g.id === 'loc-gps') { return true; } g = g.parentNode; }
     /* estrella: guardar o quitar de favoritos */
     if (t.className && String(t.className).indexOf('loc-star') >= 0) {
       var r0 = t.parentNode, l0 = { name: r0.getAttribute('data-name'), lat: +r0.getAttribute('data-lat'), lon: +r0.getAttribute('data-lon'), sub: r0.getAttribute('data-sub') };
@@ -2745,6 +2810,12 @@
     setInterval(loadModels, 60 * 60000);
     initSatellite();
     initWind();
+    /* móvil/PC: empieza en la ubicación del dispositivo (si das permiso); si no, en casa */
+    if (gpsAuto()) {
+      locateMe(true);
+      var lastLoc = Date.now();
+      document.addEventListener('visibilitychange', function () { if (!document.hidden && gpsAuto() && (curIsGps || isHome) && Date.now() - lastLoc > 30 * 60000) { lastLoc = Date.now(); locateMe(true); } });
+    }
     antiBurn();
     registerSW();
     watchBattery();

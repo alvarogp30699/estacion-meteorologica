@@ -721,3 +721,10 @@ html.mapfull, html.mapfull body { overflow: hidden; }
   #radar.full .leaflet-bottom.leaflet-right { bottom: 150px; bottom: calc(env(safe-area-inset-bottom) + 150px); }
   #radar.full #chip-storm, #radar.full #chip-lt { top: 104px; top: calc(env(safe-area-inset-top) + 102px); }
 }
+
+/* Mi ubicación */
+.gps-ic { display: inline-block; margin-right: 6px; color: #5EC8FF; font-size: 0.8em; -webkit-transform: rotate(-45deg); transform: rotate(-45deg); }
+#loc-gps { margin-bottom: 10px; }
+#loc-gps .loc-ic { -webkit-transform: rotate(-45deg); transform: rotate(-45deg); }
+.gps-auto { display: block; margin: 8px 4px 0; font-size: 13px; color: #9AA9C2; }
+.gps-auto input { margin-right: 6px; vertical-align: -2px; }
