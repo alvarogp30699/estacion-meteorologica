@@ -2215,7 +2215,7 @@
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
       var txt = min < 1 ? 'ahora' : (min < 90 ? 'hace ' + min + ' min' : 'hace ' + Math.round(min / 60) + ' h');
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
-      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + STN.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(STN.time)) : ' · datos del modelo') + radarTxt; }
+      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · estación ' + STN.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(STN.time)) : ' · modelo') + radarTxt; }
     }
     var bt = batteryTxt();
     if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent; el.className = 'warn'; }
@@ -2654,7 +2654,7 @@
   }
   function batteryTxt() {
     if (!BAT || cfg.demo) { return ''; }
-    if (!BAT.charging) { return ' · ⚠ Tablet sin cargar (' + BAT.level + ' %)'; }
+    if (!BAT.charging) { return ' · ⚠ Sin cargar ' + BAT.level + ' %'; }
     if (BAT.level <= cfg.batteryWarn) { return ' · Batería ' + BAT.level + ' %'; }
     return '';
   }
