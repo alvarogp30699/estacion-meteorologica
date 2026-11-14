@@ -1272,8 +1272,15 @@
     if (!W) { return; }
     var pts = [], src;
     if (obsFresh() && STN.hours && STN.hours.length > 3) {
+      /* lo medido en la estación (AEMET solo da unas 12 h) y, para completar las 24 h, el modelo en las horas más antiguas */
       src = 'Medido en ' + STN.station;
+      var hm2 = W.hourly, ix = hourIndex(hm2, W.current), first = new Date(STN.hours[0].t).getTime(), filled = 0;
+      for (var k0 = Math.max(0, ix - 24); k0 <= ix; k0++) {
+        var md = parseLocal(hm2.time[k0]);
+        if (md.getTime() < first - 1800000) { pts.push({ d: md, t: hm2.temperature_2m[k0], r: hm2.precipitation[k0] || 0, m: true }); filled++; }
+      }
       for (var i = 0; i < STN.hours.length; i++) { var o = STN.hours[i]; pts.push({ d: new Date(o.t), t: o.temp, r: o.rain || 0 }); }
+      if (filled) { src += ' · las primeras ' + filled + ' h, del modelo'; }
     } else {
       src = 'Modelo de Open-Meteo (no hay datos medidos)';
       var h = W.hourly, idx = hourIndex(h, W.current);
@@ -1302,7 +1309,7 @@
       svg = '<line x1="' + L + '" x2="' + (Wd - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '" stroke="#22304A"/><text x="' + (L - 8) + '" y="' + (Y(g) + 4).toFixed(1) + '" fill="#9AA9C2" font-size="12" text-anchor="end">' + g + '°</text>' + svg;
     }
     svg += '<polyline points="' + line.join(' ') + '" fill="none" stroke="#FFB86B" stroke-width="2.5" stroke-linejoin="round"/>';
-    for (i = 0; i < line.length; i++) { var c = line[i].split(','); svg += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="2.6" fill="#FFB86B"/>'; }
+    for (i = 0; i < line.length; i++) { var c = line[i].split(','); svg += pts[i] && pts[i].m ? '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="2.6" fill="#0F1728" stroke="#FFB86B" stroke-width="1.3"/>' : '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="2.6" fill="#FFB86B"/>'; }
     function anchor(i) { return i < n * 0.08 ? 'start' : (i > n * 0.92 ? 'end' : 'middle'); }
     svg += '<text x="' + X(imx).toFixed(1) + '" y="' + (Y(pts[imx].t) - 8).toFixed(1) + '" fill="#FFB86B" font-size="13" font-weight="600" text-anchor="' + anchor(imx) + '">máx ' + fmtNum(pts[imx].t, 1) + '°</text>';
     svg += '<text x="' + X(imn).toFixed(1) + '" y="' + (Y(pts[imn].t) + 18).toFixed(1) + '" fill="#8EC1FF" font-size="13" font-weight="600" text-anchor="' + anchor(imn) + '">mín ' + fmtNum(pts[imn].t, 1) + '°</text>';
