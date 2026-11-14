@@ -273,6 +273,7 @@
     renderHours(d, idx);
     renderDays(dl);
     renderStorm(d, idx);
+    renderSummary();
     fixMapSize();
   }
 
@@ -375,11 +376,216 @@
       var uv = dl.uv_index_max ? dl.uv_index_max[j] : null;
       $('tomorrow').innerHTML = svgIcon(wmo(dl.weather_code[j], 1).kind) + '<div class="tx"><div class="l">' + (j === 0 ? 'Hoy' : 'Mañana') + ' · ' + DOW_LONG[day.getDay()] + '</div>' +
         '<div class="r"><span class="mx">' + Math.round(dl.temperature_2m_max[j]) + '°</span><span class="mn">' + Math.round(dl.temperature_2m_min[j]) + '°</span><span class="rn">' + rain + '</span></div>' +
-        '<div class="s">' + (gust != null ? 'Rachas de hasta ' + Math.round(gust) + ' km/h' : '') + (uv != null ? (gust != null ? ' · ' : '') + 'UV ' + Math.round(uv) : '') + '</div></div>';
+        '<div class="s">' + (gust != null ? 'Rachas de hasta ' + Math.round(gust) + ' km/h' : '') + (uv != null ? (gust != null ? ' · ' : '') + 'UV ' + Math.round(uv) : '') + '</div>' + partsHtml(h, key) + '</div>';
     }
     /* fase lunar: entre el ocaso y el amanecer */
     var dark = dl.sunrise && dl.sunset && (n < parseLocal(dl.sunrise[0]) || n >= parseLocal(dl.sunset[0]));
     $('moon').innerHTML = dark ? moonHtml(n) : '';
+  }
+
+  /* Lluvia de un día por franjas: mañana (7–13), tarde (14–20) y noche (21–24) */
+  function dayParts(h, key) {
+    var P = [['Mañana', 7, 13], ['Tarde', 14, 20], ['Noche', 21, 23]], out = [];
+    for (var q = 0; q < P.length; q++) {
+      var pmax = 0, mm = 0;
+      for (var i = 0; i < h.time.length; i++) {
+        var t = String(h.time[i]);
+        if (t.slice(0, 10) !== key) { continue; }
+        var hr = parseInt(t.slice(11, 13), 10);
+        if (hr >= P[q][1] && hr <= P[q][2]) { pmax = Math.max(pmax, h.precipitation_probability[i] || 0); mm += h.precipitation[i] || 0; }
+      }
+      out.push({ name: P[q][0], p: Math.round(pmax), mm: mm });
+    }
+    return out;
+  }
+  function partsHtml(h, key) {
+    var parts = dayParts(h, key), html = '<div class="fr">', umb = false;
+    for (var q = 0; q < parts.length; q++) {
+      var wet = parts[q].p >= 50 || parts[q].mm >= 0.5;
+      if (wet) { umb = true; }
+      html += '<span class="' + (wet ? 'wet' : '') + '">' + parts[q].name + ' <b>' + parts[q].p + ' %</b></span>';
+    }
+    return html + (umb ? '<span class="umb" title="Lleva paraguas">☂</span>' : '') + '</div>';
+  }
+
+  /* ======================= Valores normales (media 1991–2020) ======================= */
+  /* Se piden una vez a la API histórica de Open-Meteo y se guardan 60 días en la tablet */
+  var NORM = null;
+  function normKey() { return 'estacion-normales-' + (+cfg.lat).toFixed(1) + ',' + (+cfg.lon).toFixed(1); }
+  function doy(d) { var s0 = new Date(d.getFullYear(), 0, 1); var k = Math.floor((d - s0) / 86400000); var leap = new Date(d.getFullYear(), 1, 29).getMonth() === 1; if (leap && k >= 59) { k--; } return Math.min(364, k); }
+  function loadNormals() {
+    if (cfg.demo) { NORM = { mx: [], mn: [] }; for (var q = 0; q < 365; q++) { NORM.mx.push(17 + 9 * Math.sin((q - 105) / 365 * 2 * Math.PI)); NORM.mn.push(9 + 8 * Math.sin((q - 105) / 365 * 2 * Math.PI)); } renderSummary(); return; }
+    var c = null;
+    try { c = JSON.parse(localStorage.getItem(normKey()) || 'null'); } catch (e) { c = null; }
+    if (c && c.mx && Date.now() - c.at < 60 * 86400000) { NORM = c; renderSummary(); return; }
+    NORM = null;
+    getJSON('https://archive-api.open-meteo.com/v1/archive?latitude=' + cfg.lat + '&longitude=' + cfg.lon +
+      '&start_date=1991-01-01&end_date=2020-12-31&daily=temperature_2m_max,temperature_2m_min&timezone=' + encodeURIComponent(TZ), function (r) {
+      if (!r || !r.daily) { return; }
+      var smx = [], smn = [], cnt = [], q, i;
+      for (q = 0; q < 365; q++) { smx.push(0); smn.push(0); cnt.push(0); }
+      for (i = 0; i < r.daily.time.length; i++) {
+        var a = r.daily.temperature_2m_max[i], b = r.daily.temperature_2m_min[i];
+        if (a == null || b == null) { continue; }
+        var k = doy(parseLocal(r.daily.time[i] + 'T12:00'));
+        smx[k] += a; smn[k] += b; cnt[k]++;
+      }
+      /* media móvil de ±7 días para que la curva sea suave */
+      var mx = [], mn = [];
+      for (q = 0; q < 365; q++) {
+        var tx = 0, tn = 0, tc = 0;
+        for (var w = -7; w <= 7; w++) { var j = (q + w + 365) % 365; tx += smx[j]; tn += smn[j]; tc += cnt[j]; }
+        mx.push(tc ? Math.round(tx / tc * 10) / 10 : null); mn.push(tc ? Math.round(tn / tc * 10) / 10 : null);
+      }
+      NORM = { at: Date.now(), mx: mx, mn: mn };
+      try { localStorage.setItem(normKey(), JSON.stringify(NORM)); } catch (e) { /* sin espacio */ }
+      renderSummary();
+    }, function () { /* se vuelve a intentar al recargar */ });
+  }
+  /* diferencia de la máxima prevista de un día con lo normal (null si no hay datos) */
+  function vsNormal(j) {
+    if (!NORM || !W || !W.daily.time[j]) { return null; }
+    var n = NORM.mx[doy(parseLocal(W.daily.time[j] + 'T12:00'))];
+    return n == null ? null : W.daily.temperature_2m_max[j] - n;
+  }
+
+  /* ======================= Resumen en una frase ======================= */
+  var SUMMARY = '';
+  function skyOf(code) {
+    if (code >= 95) { return 'storm'; }
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) { return 'rain'; }
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) { return 'snow'; }
+    if (code === 45 || code === 48) { return 'fog'; }
+    if (code <= 1) { return 'clear'; }
+    return code === 2 ? 'mixed' : 'cloudy';
+  }
+  function skyWord(cat, night) {
+    return { clear: night ? 'despejado' : 'soleado', mixed: 'nubes y claros', cloudy: 'nublado', fog: 'niebla', rain: 'lluvia', snow: 'nieve', storm: 'tormentas' }[cat];
+  }
+  function intensityWord(mmh) { return mmh >= 4 ? 'fuerte' : (mmh >= 1 ? 'moderada' : 'débil'); }
+  /* describe un tramo de horas [a, b] del modelo */
+  function describeSpan(a, b, night) {
+    var h = W.hourly, cnt = {}, best = 'clear', bn = 0, first = -1, last = -1, mx = 0, storm = false, tmax = -99, tmin = 99, wetN = 0, tot = 0, i;
+    for (i = a; i <= b && i < h.time.length; i++) {
+      tot++;
+      var wet = (h.precipitation[i] || 0) >= 0.2 || ((h.precipitation_probability[i] || 0) >= 60 && (h.precipitation[i] || 0) >= 0.1);
+      if (wet) { wetN++; if (first < 0) { first = i; } last = i; mx = Math.max(mx, h.precipitation[i] || 0); if (h.weather_code[i] >= 95) { storm = true; } }
+      var c = skyOf(h.weather_code[i]);
+      if (c !== 'rain' && c !== 'storm') { cnt[c] = (cnt[c] || 0) + 1; if (cnt[c] > bn) { bn = cnt[c]; best = c; } }
+      tmax = Math.max(tmax, h.temperature_2m[i]); tmin = Math.min(tmin, h.temperature_2m[i]);
+    }
+    return { first: first, last: last, mx: mx, storm: storm, sky: skyWord(best, night), mostlyWet: wetN * 2 >= tot, tmax: tmax, tmin: tmin };
+  }
+  function hNum(i) { return parseLocal(W.hourly.time[i]).getHours(); }
+  /* «lluvia moderada de 18 a 23 h», «lloviendo hasta las 20 h», «lluvia débil desde las 21 h» */
+  function rainPhrase(sp, a, b) {
+    var what = sp.storm ? 'tormentas' : 'lluvia ' + intensityWord(sp.mx);
+    if (sp.first <= a) { return (sp.storm ? 'tormentas' : 'lloviendo') + (sp.last >= b ? '' : ' hasta las ' + hNum(sp.last + 1) + ' h'); }
+    if (sp.last >= b) { return what + ' desde las ' + hNum(sp.first) + ' h'; }
+    return what + ' de ' + hNum(sp.first) + ' a ' + hNum(sp.last + 1) + ' h';
+  }
+  function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+  function lastIdxOfDay(key) { var h = W.hourly, k = -1; for (var i = 0; i < h.time.length; i++) { if (String(h.time[i]).slice(0, 10) === key) { k = i; } } return k; }
+  function spanText(sp, a, b) {
+    if (sp.first < 0) { return sp.sky; }
+    if (sp.mostlyWet || sp.first <= a) { return rainPhrase(sp, a, b); }
+    return sp.sky + '; ' + rainPhrase(sp, a, b);
+  }
+  function normalTxt(j, label) {
+    var d = vsNormal(j);
+    if (d == null || Math.abs(d) < 2) { return ''; }
+    return label + ' ' + Math.round(Math.abs(d)) + '° ' + (d > 0 ? 'por encima' : 'por debajo') + ' de lo normal para la época';
+  }
+  function buildSummary() {
+    if (!W) { return ''; }
+    var h = W.hourly, dl = W.daily, idx = hourIndex(h, W.current), n = now(), hr = n.getHours(), out = [], sp, nt = '';
+    if (!isEvening()) {
+      var end = lastIdxOfDay(String(dl.time[0]));
+      sp = describeSpan(idx, end, false);
+      var head = hr < 13 ? 'Hoy' : 'Esta tarde';
+      out.push(head + ': ' + spanText(sp, idx, end) + (hr < 15 ? ', máxima de ' + Math.round(dl.temperature_2m_max[0]) + '°' : ''));
+      nt = normalTxt(0, 'Máxima de hoy');
+      if (hr >= 14) { out.push(tomorrowPhrase(1)); }
+    } else {
+      var j = hr < 12 ? 0 : 1, tonightEnd = Math.min(h.time.length - 1, idx + (hr < 12 ? Math.max(0, 7 - hr) : 31 - hr));
+      if (hr >= 12) { sp = describeSpan(idx, tonightEnd, true); out.push('Esta noche: ' + spanText(sp, idx, tonightEnd) + ', mínima de ' + Math.round(sp.tmin) + '°'); }
+      out.push(tomorrowPhrase(j));
+      nt = normalTxt(j, j === 0 ? 'Máxima de hoy' : 'Máxima de mañana');
+    }
+    var gmax = 0, gi = -1;
+    if (h.wind_gusts_10m) { for (var q = idx; q <= idx + 12 && q < h.time.length; q++) { if ((h.wind_gusts_10m[q] || 0) > gmax) { gmax = h.wind_gusts_10m[q]; gi = q; } } }
+    if (gmax >= 50) { out.push('Rachas de hasta ' + Math.round(gmax) + ' km/h' + (gi > idx ? ' hacia las ' + hNum(gi) + ' h' : ' ahora')); }
+    if (nt) { out.push(nt); }
+    if (idx >= 24) {
+      var dy = W.current.temperature_2m - h.temperature_2m[idx - 24];
+      if (Math.abs(dy) >= 3) { out.push(Math.round(Math.abs(dy)) + '° ' + (dy > 0 ? 'más' : 'menos') + ' que ayer a esta hora'); }
+    }
+    return out.join('. ') + '.';
+  }
+  function tomorrowPhrase(j) {
+    var dl = W.daily, h = W.hourly, key = String(dl.time[j]);
+    if (!dl.time[j]) { return ''; }
+    var word = sameDay(parseLocal(key + 'T12:00'), now()) ? 'Hoy' : 'Mañana';
+    var a = -1, b = -1;
+    for (var i = 0; i < h.time.length; i++) { if (String(h.time[i]).slice(0, 10) === key) { var hh = parseInt(String(h.time[i]).slice(11, 13), 10); if (hh === 7) { a = i; } if (hh === 23) { b = i; } } }
+    var sp = a >= 0 && b >= 0 ? describeSpan(a, b, false) : null, temps = Math.round(dl.temperature_2m_max[j]) + '° / ' + Math.round(dl.temperature_2m_min[j]) + '°';
+    if (sp && sp.first >= 0) {
+      var parts = dayParts(h, key), wetP = [];
+      for (var q = 0; q < parts.length; q++) { if (parts[q].p >= 50 || parts[q].mm >= 0.5) { wetP.push(parts[q].name === 'Mañana' ? 'por la mañana' : parts[q].name === 'Tarde' ? 'por la tarde' : 'por la noche'); } }
+      var rw = (sp.storm ? 'tormentas' : 'lluvia ' + intensityWord(sp.mx)) + (wetP.length && wetP.length < 3 ? ' ' + wetP.join(' y ') : '');
+      return word + ': ' + (sp.mostlyWet ? rw : sp.sky + ', ' + rw) + ', ' + temps;
+    }
+    return word + ': ' + (sp ? sp.sky : skyWord(skyOf(dl.weather_code[j]), false)) + ', ' + temps + ', sin lluvia';
+  }
+  function renderSummary() {
+    try { SUMMARY = buildSummary(); } catch (e) { SUMMARY = ''; }
+    placeSummary();
+  }
+  /* sin avisos: la frase va dentro de la franja verde; con aviso, en una línea propia debajo */
+  function placeSummary() {
+    var col = $('col-alert'), el = $('summary');
+    if (!el) { return; }
+    var calm = col.className.indexOf(' calm') >= 0 && col.className.indexOf('gray') < 0;
+    if (calm && SUMMARY) {
+      col.className += ' sum';
+      col.innerHTML = lineIcon(I_CHECK, '#3DDC84') + '<span class="calm-t"><span class="sm">' + esc(SUMMARY) + '</span><span class="sz">Sin avisos AEMET</span></span>';
+      el.className = ''; el.textContent = '';
+    } else {
+      el.textContent = SUMMARY;
+      el.className = SUMMARY ? 'on' : '';
+    }
+  }
+
+  /* ======================= Satélite (nubes) ======================= */
+  /* Imagen Geo Colour de Meteosat (MTG) de EUMETView: color real de día, infrarrojo de noche; pública y gratuita */
+  var satLayer = null, satOn = false;
+  function initSatellite() {
+    var btn = $('sat-btn');
+    if (!btn) { return; }
+    try { satOn = localStorage.getItem('estacion-satelite') === '1'; } catch (e) { satOn = false; }
+    btn.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } satOn = !satOn; try { localStorage.setItem('estacion-satelite', satOn ? '1' : '0'); } catch (e) { /* nada */ } applySatellite(); };
+    applySatellite();
+    (function satTick() { setTimeout(function () { if (satLayer) { satLayer.setParams({ _t: Math.floor(Date.now() / 600000) }); } satTick(); }, Math.max(1000, nextSlot() + 60000 - Date.now())); })();
+  }
+  function applySatellite() {
+    var btn = $('sat-btn');
+    btn.className = satOn ? 'on' : '';
+    if (cfg.demo) { return; }
+    if (satOn && !satLayer) {
+      satLayer = L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms', { layers: cfg.satLayer || 'mtg_fd:rgb_geocolour', format: 'image/jpeg', transparent: false, version: '1.3.0', opacity: 0.75, zIndex: 2, className: 'sat-img', attribution: 'Satélite &copy; EUMETSAT', _t: Math.floor(Date.now() / 600000) });
+      satLayer.addTo(map);
+    } else if (!satOn && satLayer) { map.removeLayer(satLayer); satLayer = null; }
+  }
+
+  /* ======================= Protector de pantalla ======================= */
+  /* cada 3 min desplaza todo unos pocos píxeles en círculo para que la pantalla no quede marcada */
+  function antiBurn() {
+    var pos = [[0, 0], [2, 1], [3, -1], [1, -3], [-2, -2], [-3, 1], [-1, 3], [2, 3]], k = 0;
+    setInterval(function () {
+      k = (k + 1) % pos.length;
+      var t = 'translate(' + pos[k][0] + 'px, ' + pos[k][1] + 'px)';
+      var a = $('app'); a.style.webkitTransform = t; a.style.transform = t;
+    }, 180000);
   }
 
   /* Fase lunar calculada (luna nueva de referencia: 6 ene 2000 18:14 UTC; mes sinódico 29,53 días) */
@@ -732,6 +938,7 @@
     if (!isHome) {
       col.className = 'alert-banner on calm gray';
       col.innerHTML = lineIcon(I_INFO, '#8494AF') + '<span class="calm-t">Viendo ' + esc(cfg.name) + ' · los avisos de AEMET, la estación y los rayos son de ' + esc(HOME.name) + '</span>';
+      placeSummary();
       afterAlertLayout(wasWide);
       return;
     }
@@ -747,6 +954,7 @@
         col.className = 'alert-banner on calm';
         col.innerHTML = lineIcon(I_CHECK, '#3DDC84') + '<span class="calm-t">Sin avisos de AEMET · ' + zone + '</span>';
       }
+      placeSummary();
       afterAlertLayout(wasWide);
       return;
     }
@@ -770,6 +978,7 @@
       col.className = 'alert-banner on ' + a.level;
       col.innerHTML = html;
     }
+    placeSummary();
     afterAlertLayout(wasWide);
   }
   /* Gráfico de las últimas 24 h: lo medido en la estación si lo hay; si no, el modelo */
@@ -2026,7 +2235,7 @@
     userMoved = false; fixMapSize();
     radarHere = null; radarEta = null; lastOk = 0; buildNowcast(null);
     clearTimeout(weatherTimer);
-    loadWeather(); loadForecastGrid(); loadSea(); loadAir();
+    loadWeather(); loadForecastGrid(); loadSea(); loadAir(); loadNormals();
     analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
     clearTimeout(awayTimer);
     if (!isHome && cfg.locReturnMin) { armAway(); }
@@ -2154,6 +2363,9 @@
     loadAlerts();
     loadObs();
     loadAir();
+    loadNormals();
+    initSatellite();
+    antiBurn();
     registerSW();
     watchBattery();
     loadLightning();

@@ -590,3 +590,35 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
 }
 
 #tlh-fc .fc-err { color: #FF9A3D; text-transform: none; letter-spacing: 0; font-size: 12px; }
+
+/* Resumen en una frase */
+#summary { display: none; -webkit-flex-shrink: 0; flex-shrink: 0; margin: -4px 4px 10px; font-size: 15px; line-height: 1.35; color: #DCE8FA; }
+#summary.on { display: block; }
+.alert-banner.calm.sum { height: auto; min-height: 40px; padding-top: 7px; padding-bottom: 7px; color: #E8EEF9; font-size: 15px; line-height: 1.35; }
+.alert-banner.calm.sum .calm-t { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-flex: 1; flex: 1; min-width: 0; }
+.alert-banner.calm.sum .sm { -webkit-flex: 1; flex: 1; min-width: 0; }
+.alert-banner.calm.sum .sz { -webkit-flex: none; flex: none; margin-left: 12px; font-size: 12px; color: #8FD3AC; white-space: nowrap; }
+@media (max-width: 900px), (max-height: 560px) {
+  .alert-banner.calm.sum .calm-t { display: block; }
+  .alert-banner.calm.sum .sz { display: block; margin: 2px 0 0; }
+  #summary { font-size: 14px; }
+}
+
+/* Mañana por franjas */
+#tomorrow .fr { margin-top: 3px; font-size: 13px; color: #9AA9C2; white-space: nowrap; overflow: hidden; }
+#tomorrow .fr span { margin-right: 9px; }
+#tomorrow .fr .umb { font-size: 15px; margin-right: 0; }
+#tomorrow .fr b { font-weight: 600; color: #C5D1E6; }
+#tomorrow .fr .wet b { color: #8EC1FF; }
+#tomorrow .fr .umb { color: #8EC1FF; font-weight: 600; }
+
+/* Botón de nubes del satélite */
+#sat-btn { margin-left: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid #2D3D5C; background: transparent; color: #9AA9C2; font: inherit; font-size: 13px; cursor: pointer; }
+#sat-btn.on { background: #5EC8FF; border-color: #5EC8FF; color: #0B1220; font-weight: 600; }
+.sat-img { -webkit-filter: saturate(0.8) brightness(0.85); filter: saturate(0.8) brightness(0.85); }
+#app { -webkit-transition: -webkit-transform 2s; transition: transform 2s; }
+@media (max-width: 520px) {
+  #chip-l .rl { display: none; }
+  #chip-l .dot { margin-right: 0; }
+  #sat-btn { margin-left: 8px; }
+}
