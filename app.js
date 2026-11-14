@@ -40,6 +40,7 @@
     seaEveryMin: C.seaEveryMin || 30,
     alertsEveryMin: C.alertsEveryMin || 10,
     meteocatUrl: def(C.meteocatUrl, 'meteocat.json'),
+    climaUrl: def(C.climaUrl, 'clima.json'),
     alertsUrl: def(C.alertsUrl, 'avisos.json'),
     autoplay: C.autoplay === true,
     playLoops: C.playLoops || 3,
@@ -466,7 +467,7 @@
 
   /* ======================= Clima: normales (1991–2020), récords (desde 1940) y lluvia normal ======================= */
   /* Una sola petición grande a la API histórica de Open-Meteo (ERA5), guardada 60 días en la tablet */
-  var NORM = null, YEAR = null;
+  var NORM = null, YEAR = null, normTriedFile = false;
   function normKey() { return 'estacion-clima-v2-' + (+cfg.lat).toFixed(1) + ',' + (+cfg.lon).toFixed(1); }
   function doy(d) { var s0 = new Date(d.getFullYear(), 0, 1); var k = Math.floor((d - s0) / 86400000); var leap = new Date(d.getFullYear(), 1, 29).getMonth() === 1; if (leap && k >= 59) { k--; } return Math.max(0, Math.min(364, k)); }
   function loadNormals() {
@@ -484,6 +485,18 @@
     var c = null;
     try { c = JSON.parse(localStorage.getItem(normKey()) || 'null'); } catch (e) { c = null; }
     if (c && c.mx && c.rmx && Date.now() - c.at < 60 * 86400000) { NORM = c; renderSummary(); }
+    else if (isHome && cfg.climaUrl && !normTriedFile) {
+      /* en casa: archivo ya calculado por GitHub (pocos KB) en vez de 80 años de datos */
+      normTriedFile = true;
+      getJSON(cfg.climaUrl + '?t=' + Math.floor(Date.now() / 86400000), function (d) {
+        if (!d || !d.mx || !d.rmx) { loadNormals(); return; }
+        NORM = { at: Date.now(), mx: d.mx, mn: d.mn, rn: d.rn, rmx: d.rmx, rmxY: d.rmxY, rmn: d.rmn, rmnY: d.rmnY };
+        try { localStorage.setItem(normKey(), JSON.stringify(NORM)); } catch (e) { /* sin espacio */ }
+        renderSummary();
+      }, function () { loadNormals(); });
+      loadYearRain();
+      return;
+    }
     else {
       NORM = null;
       var y1 = now().getFullYear() - 1;
