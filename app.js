@@ -2215,8 +2215,8 @@
     setInterval(minuteTick, 60000);
     setInterval(loadForecastGrid, cfg.forecastEveryMin * 60000);
     setInterval(loadSea, cfg.seaEveryMin * 60000);
-    setInterval(loadAlerts, cfg.alertsEveryMin * 60000);
-    setInterval(loadObs, 10 * 60000);
+    /* avisos y estación también a horas fijas (:00, :10, :20…) */
+    (function slotTick() { setTimeout(function () { loadAlerts(); loadObs(); slotTick(); }, Math.max(1000, nextSlot() - Date.now())); })();
     setInterval(loadAir, 60 * 60000);
     setInterval(checkVersion, 10 * 60000);
     setInterval(loadLightning, 5 * 60000);
