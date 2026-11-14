@@ -771,14 +771,19 @@
         svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - B - bh - 4).toFixed(1) + '" fill="#DCE8FA" font-size="12" text-anchor="middle">' + mmTxt(pts[i].r) + '</text>';
       }
       if (pts[i].t != null) { line.push(X(i).toFixed(1) + ',' + Y(pts[i].t).toFixed(1)); if (pts[i].t > pts[imx].t) { imx = i; } if (pts[i].t < pts[imn].t) { imn = i; } }
-      if (pts[i].d.getHours() % 3 === 0) { svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - 12) + '" fill="#9AA9C2" font-size="13" text-anchor="middle">' + pad(pts[i].d.getHours()) + 'h</text>'; }
+      /* todas las horas; las de cada 3 h, más marcadas */
+      var hr3 = pts[i].d.getHours() % 3 === 0;
+      svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - 12) + '" fill="' + (hr3 ? '#C5D1E6' : '#7F8DA6') + '" font-size="' + (n > 26 ? 10 : 12) + '" text-anchor="middle">' + pad(pts[i].d.getHours()) + '</text>';
+      svg += '<line x1="' + X(i).toFixed(1) + '" x2="' + X(i).toFixed(1) + '" y1="' + (Hd - B) + '" y2="' + (Hd - B + 4) + '" stroke="#3A4C6B"/>';
     }
     for (var g = lo; g <= hi; g += Math.max(1, Math.round((hi - lo) / 4))) {
       svg = '<line x1="' + L + '" x2="' + (Wd - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '" stroke="#22304A"/><text x="' + (L - 8) + '" y="' + (Y(g) + 4).toFixed(1) + '" fill="#9AA9C2" font-size="12" text-anchor="end">' + g + '°</text>' + svg;
     }
     svg += '<polyline points="' + line.join(' ') + '" fill="none" stroke="#FFB86B" stroke-width="2.5" stroke-linejoin="round"/>';
-    svg += '<text x="' + X(imx).toFixed(1) + '" y="' + (Y(pts[imx].t) - 8).toFixed(1) + '" fill="#FFB86B" font-size="13" font-weight="600" text-anchor="middle">máx ' + fmtNum(pts[imx].t, 1) + '°</text>';
-    svg += '<text x="' + X(imn).toFixed(1) + '" y="' + (Y(pts[imn].t) + 18).toFixed(1) + '" fill="#8EC1FF" font-size="13" font-weight="600" text-anchor="middle">mín ' + fmtNum(pts[imn].t, 1) + '°</text>';
+    for (i = 0; i < line.length; i++) { var c = line[i].split(','); svg += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="2.6" fill="#FFB86B"/>'; }
+    function anchor(i) { return i < n * 0.08 ? 'start' : (i > n * 0.92 ? 'end' : 'middle'); }
+    svg += '<text x="' + X(imx).toFixed(1) + '" y="' + (Y(pts[imx].t) - 8).toFixed(1) + '" fill="#FFB86B" font-size="13" font-weight="600" text-anchor="' + anchor(imx) + '">máx ' + fmtNum(pts[imx].t, 1) + '°</text>';
+    svg += '<text x="' + X(imn).toFixed(1) + '" y="' + (Y(pts[imn].t) + 18).toFixed(1) + '" fill="#8EC1FF" font-size="13" font-weight="600" text-anchor="' + anchor(imn) + '">mín ' + fmtNum(pts[imn].t, 1) + '°</text>';
     var html = '<div class="dp-box"><div class="dp-head">' + svgIcon(wmo(W.current.weather_code, W.current.is_day).kind) +
       '<div class="dp-t"><div class="dp-n">Últimas 24 horas · ' + esc(src) + '</div><div class="dp-c">Temperatura <b>' + fmtNum(pts[imn].t, 1) + '° – ' + fmtNum(pts[imx].t, 1) + '°</b> · Lluvia <b>' + mmTxt(rsum) + ' mm</b></div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
