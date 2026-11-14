@@ -1,0 +1,67 @@
+ESTACIÓN METEOROLÓGICA (diseño A · Noche)
+=========================================
+
+1) PROBARLA EN EL PC (opcional)
+   Abre una terminal en esta carpeta y ejecuta:
+       python -m http.server 8000
+   Luego abre  http://localhost:8000  en Chrome.
+   Desde la tablet (misma Wi-Fi):  http://IP-DE-TU-PC:8000
+
+2) PUBLICARLA PARA LA TABLET (gratis, sin servidor propio) — GitHub Pages
+   a) Crea un repositorio en GitHub (puede ser público) y sube TODO el contenido de esta
+      carpeta, incluidas las carpetas ocultas .github y tools.
+   b) Settings -> Pages -> "Deploy from a branch" -> rama main, carpeta / (root).
+      Tu web quedará en https://TU-USUARIO.github.io/NOMBRE-REPO/
+   c) Settings -> Actions -> General -> Workflow permissions -> "Read and write permissions".
+   d) Pestaña Actions -> "Avisos AEMET" -> "Run workflow" para la primera ejecución.
+      En el registro verás "Zonas de Tarragona en el feed: ...". Si tu zona sale con otro
+      nombre, cámbialo en .github/workflows/avisos.yml (línea ZONAS).
+   A partir de ahí, cada 15 min GitHub descarga los avisos de AEMET (vía MeteoAlarm, sin clave)
+   y actualiza avisos.json. La tablet lo lee de la misma web.
+   Nota: GitHub puede pausar las tareas programadas de un repositorio sin actividad durante
+   60 días; si ves "Avisos de AEMET sin actualizar", entra en Actions y reactívala.
+
+   Otras opciones (Netlify, Cloudflare Pages) sirven para la web, pero no ejecutan la tarea
+   de avisos: en ese caso pon alertsUrl: '' en config.js.
+
+3) EN LA TABLET
+   - Abre la dirección en Chrome. Menú ⋮ -> "Añadir a pantalla de inicio" (se abre a pantalla completa).
+   - Si no, doble toque sobre la hora o sobre la temperatura = pantalla completa.
+   - Pantalla siempre encendida: Ajustes -> Opciones de desarrollador -> "Mantener activo"
+     (mantiene la pantalla encendida mientras carga). Si no ves "Opciones de desarrollador":
+     Ajustes -> Información del tablet -> toca 7 veces "Número de compilación".
+   - Déjala siempre enchufada con un cargador de buena calidad.
+
+   - RECOMENDADO para dejarla fija 24/7: un navegador kiosko (p. ej. Fully Kiosk Browser)
+     en vez de Chrome. Arranca solo al encender la tablet, mantiene la pantalla activa,
+     recarga si la página se cuelga y puede bajar el brillo real de noche.
+     Comprueba que la versión que instales sea compatible con Android 6.
+
+4) CAMBIAR AJUSTES
+   Edita config.js (ubicación, zoom, velocidad de la animación, frecuencia de actualización...).
+   También por URL:  index.html?lat=41.38&lon=2.17&name=Barcelona
+
+5) MODO DEMO (para ver el diseño sin conexión)
+   index.html?demo=1
+   Abajo sale una barra para cambiar entre tarde, avisos, noche (21:35) y atenuado.
+
+6) FUNCIONAMIENTO 24/7
+   - Si se cae la conexión, reintenta a los 30 s, 1, 2 y 5 min.
+   - Si el radar lleva más de 20 min sin actualizarse, la hora se pone en naranja.
+   - De 23:00 a 07:00 se atenúa la pantalla (un toque la ilumina 1 minuto).
+     El velo es por software: el brillo real de la pantalla lo controla el kiosko o Android.
+   - Cada día a las 04:00 se recarga sola para liberar memoria.
+   - Toca el mapa para ampliar el radar (con zoom); vuelve solo a los 30 s.
+   - Desde las 20:00 la tarjeta «Mañana» sustituye a Mar y Sol; de noche sale la fase lunar.
+
+DATOS
+   Radar +24 h: no es radar, es la lluvia prevista por el modelo de Open-Meteo en una rejilla de
+   221 puntos (cada ~25 km), pintada en la tablet. Sirve para ver por dónde vendrá, no el detalle.
+   Lluvia en la próxima hora: datos cada 15 min de Open-Meteo (en España se interpolan del modelo horario).
+   Riesgo de tormenta: previsión (código de tormenta y energía convectiva), no rayos reales.
+   Mar: Open-Meteo Marine (no apto para navegación).
+   Avisos: AEMET, a través de MeteoAlarm.
+   Previsión: Open-Meteo (open-meteo.com, uso no comercial, datos CC BY 4.0).
+   "Llovido hoy" sale del modelo de Open-Meteo para las horas pasadas, no de un pluviómetro.
+   Radar: RainViewer (últimas 2 horas, fotogramas de 10 min).
+   Mapa base: CARTO / OpenStreetMap.

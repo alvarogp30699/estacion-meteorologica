@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estación meteorológica</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0B1220">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Aviso naranja o rojo: franja a todo el ancho -->
+  <div id="wide-alert" class="alert-banner wide"></div>
+
+  <div id="cols">
+    <!-- Izquierda: ahora -->
+    <div id="left">
+      <div class="place">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+        <span id="place">Salou</span>
+      </div>
+      <div id="clock">--:--</div>
+      <div id="date"><span id="date-t">&nbsp;</span><span id="moon"></span></div>
+
+      <div id="now" class="card">
+        <div class="now-row">
+          <div id="temp">--°</div>
+          <div id="bigicon"></div>
+        </div>
+        <div id="cond">Cargando…</div>
+        <div id="range">&nbsp;</div>
+        <div id="nexthour" class="nh"></div>
+      </div>
+
+      <div id="stats">
+        <div class="row">
+          <div class="stat"><div class="l">Viento</div><div class="v" id="wind">--</div><div class="s" id="wind-s">&nbsp;</div></div>
+          <div class="stat"><div class="l">Humedad</div><div class="v" id="hum">--</div><div class="s" id="hum-s">&nbsp;</div></div>
+        </div>
+        <div class="row">
+          <div class="stat"><div class="l">Llovido hoy</div><div class="v" id="rain">--</div><div class="s blue" id="rain-s">&nbsp;</div></div>
+          <div class="stat"><div class="l">Presión</div><div class="v" id="press">--</div><div class="s" id="press-s">&nbsp;</div></div>
+        </div>
+        <div class="row" id="row3">
+          <div class="stat"><div class="l">Mar</div><div class="v" id="sea">--</div><div class="s" id="sea-s">&nbsp;</div></div>
+          <div class="stat"><div class="l">Sol</div><div class="v" id="sun">--</div><div class="s" id="sun-s">&nbsp;</div></div>
+        </div>
+        <div id="tomorrow" class="card"></div>
+      </div>
+
+      <div id="status">&nbsp;</div>
+    </div>
+
+    <!-- Derecha: avisos, radar y previsión -->
+    <div id="right">
+      <div id="col-alert" class="alert-banner"></div>
+
+      <div id="radar">
+        <div id="map"></div>
+        <div id="chip-l" class="chip"><span class="dot"></span>Radar de lluvia</div>
+        <div id="chip-storm" class="chip storm"></div>
+        <div id="fullinfo" class="chip"></div>
+        <button id="fullclose" type="button" class="chip">Toca aquí para volver · vuelve sola en 30 s</button>
+        <div id="chip-r" class="chip mode"><span class="dot"></span><span class="k">Observado</span><span class="w">--:--</span></div>
+        <div id="bar">
+          <button id="play" type="button" aria-label="Pausar animación del radar"></button>
+          <div id="tl">
+            <div id="tlhead"><span id="tlh-obs">Observado</span><span id="tlh-fc">Previsión del modelo</span></div>
+            <div id="track">
+              <div id="t-obs"></div><div id="t-fc"></div>
+              <div id="t-fill"></div><div id="t-fill-fc"></div>
+              <div id="t-now"></div><div id="t-thumb"></div>
+            </div>
+            <div id="ticks"></div>
+          </div>
+          <div id="legend">
+            <div class="grad"></div>
+            <div class="lab"><span style="left: 0">0,5</span><span style="left: 28%">2</span><span style="left: 50%">10</span><span style="right: 0">50+ mm/h</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="hours" class="card">
+        <div class="head"><span class="ttl">Próximas 24 h</span><span class="key"><i></i>mm por hora (cada 3 h de noche) · <b>% probabilidad</b></span></div>
+        <div id="hours-wrap"><div id="hours-band"></div><div id="hours-curve"></div><div id="hours-cols"></div></div>
+      </div>
+      <div id="days" class="card"></div>
+    </div>
+  </div>
+</div>
+
+<div id="dim"></div>
+
+<script src="config.js"></script>
+<script src="leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

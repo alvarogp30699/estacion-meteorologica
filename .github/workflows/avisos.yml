@@ -1,0 +1,32 @@
+name: Avisos AEMET
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # cada 15 min (GitHub puede retrasarlo unos minutos)
+  workflow_dispatch:          # botón "Run workflow" para lanzarlo a mano
+
+permissions:
+  contents: write
+
+concurrency:
+  group: avisos
+  cancel-in-progress: false
+
+jobs:
+  avisos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar y filtrar avisos
+        env:
+          ZONAS: "Litoral sur de Tarragona|Litoral sud de Tarragona"
+        run: python3 tools/avisos.py
+      - name: Guardar si ha cambiado
+        run: |
+          if git diff --quiet -- avisos.json; then echo "Nada que guardar"; exit 0; fi
+          git config user.name "avisos-bot"
+          git config user.email "avisos-bot@users.noreply.github.com"
+          git add avisos.json
+          git commit -m "Avisos AEMET $(date -u +%H:%M)"
+          git push
