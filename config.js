@@ -21,7 +21,7 @@ window.CONFIG = {
 
   // Cada cuántos minutos se actualizan los datos
   weatherEveryMin: 10,
-  radarEveryMin: 5,
+  radarEveryMin: 10,
   forecastEveryMin: 60,  // previsión de lluvia +24 h en el mapa
   seaEveryMin: 30,
   alertsEveryMin: 10,

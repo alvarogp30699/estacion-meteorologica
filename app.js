@@ -1351,7 +1351,11 @@
       var r = data.radar || {};
       var list = (r.past || []).concat(r.nowcast || []);
       if (list.length) { applyObs(data.host || 'https://tilecache.rainviewer.com', list); }
-      radarFails = 0; updateStatus(); scheduleRadar();
+      radarFails = 0; updateStatus();
+      /* si la imagen de esta franja (:00, :10…) aún no está publicada, vuelve a mirar cada minuto (hasta 6 veces) */
+      var past = r.past || [], last = past.length ? past[past.length - 1].time * 1000 : 0, slot = Date.now() - Date.now() % SLOT_MS;
+      if (last < slot && radarWait < 6) { radarWait++; clearTimeout(radarTimer); radarTimer = setTimeout(loadRadar, 60000); return; }
+      radarWait = 0; scheduleRadar();
     }, function () { radarFails++; updateStatus(); scheduleRadar(); });
   }
   /* ---- Análisis del radar alrededor de la ubicación (zoom 7, 3×3 teselas = 768 px, ~0,9 km por píxel) ----
@@ -1681,11 +1685,21 @@
 
   /* Si falla, vuelve a probar a los 30 s, 1, 2 y 5 min; si va bien, a la frecuencia normal */
   var BACKOFF = [30, 60, 120, 300];
+  /* Actualización a horas fijas: :00, :10, :20… (+15 s para que el servidor tenga el dato nuevo) */
+  var SLOT_MS = 10 * 60000, SLOT_LAG = 15000;
+  function nextSlot() { var n = Date.now(), t = n - n % SLOT_MS + SLOT_LAG; if (t <= n) { t += SLOT_MS; } return t; }
   function nextDelay(fails, normalMin) {
-    if (!fails) { return normalMin * 60000; }
+    if (!fails) { return Math.max(1000, nextSlot() - Date.now()); }
     return Math.min(BACKOFF[Math.min(fails, BACKOFF.length) - 1] * 1000, normalMin * 60000);
   }
-  var weatherTimer = null, weatherFails = 0, radarTimer = null, radarFails = 0;
+  var weatherTimer = null, weatherFails = 0, radarTimer = null, radarFails = 0, radarWait = 0;
+  /* mini cuenta atrás hasta la próxima actualización */
+  function updateCountdown() {
+    var el = $('cd'); if (!el) { return; }
+    var left = Math.max(0, Math.round((nextSlot() - SLOT_LAG - Date.now()) / 1000));
+    var deg = Math.round(360 * (1 - left / (SLOT_MS / 1000)));
+    el.innerHTML = '<i style="background: conic-gradient(#5EC8FF ' + deg + 'deg, #22304A 0)"></i>' + (left ? Math.floor(left / 60) + ':' + pad(left % 60) : 'ahora');
+  }
   function scheduleWeather() { clearTimeout(weatherTimer); weatherTimer = setTimeout(loadWeather, nextDelay(weatherFails, cfg.weatherEveryMin)); }
   function scheduleRadar() { clearTimeout(radarTimer); radarTimer = setTimeout(loadRadar, nextDelay(radarFails, cfg.radarEveryMin)); }
 
@@ -2197,6 +2211,7 @@
 
     setInterval(function () { updateClock(); if (full) { updateFullInfo(); } updateNightClock(false); }, 5000);
     setInterval(updateStatus, 30000);
+    updateCountdown(); setInterval(updateCountdown, 1000);
     setInterval(minuteTick, 60000);
     setInterval(loadForecastGrid, cfg.forecastEveryMin * 60000);
     setInterval(loadSea, cfg.seaEveryMin * 60000);

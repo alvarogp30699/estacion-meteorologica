@@ -100,7 +100,10 @@ button { font-family: inherit; }
 .stat .s.warn { color: #FFB86B; }
 #app.wide #row3 { display: none; }
 
-#status { margin-top: auto; padding-top: 8px; font-size: 14px; color: #9AA9C2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#statusrow { margin-top: auto; padding-top: 8px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; min-width: 0; }
+#cd { -webkit-flex: none; flex: none; margin-right: 10px; font-size: 13px; color: #9AA9C2; font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; white-space: nowrap; }
+#cd i { display: inline-block; width: 12px; height: 12px; border-radius: 6px; margin-right: 5px; vertical-align: -1px; background: #22304A; }
+#status { -webkit-flex: 1; flex: 1; min-width: 0; font-size: 14px; color: #9AA9C2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #status.warn { color: #FFB86B; }
 
 /* ---------- Avisos ---------- */
@@ -523,7 +526,8 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
   #app.evening #row3 { display: none; }
   #tomorrow { padding: 8px 12px; }
   #tomorrow .rn { white-space: normal; }
-  #status { margin-top: 10px; white-space: normal; font-size: 13px; }
+  #statusrow { margin-top: 10px; }
+  #status { white-space: normal; font-size: 13px; }
   #right { margin-top: 14px; }
 
   .alert-banner.on, .alert-banner.wide.on { height: auto; min-height: 52px; padding: 10px 12px; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
