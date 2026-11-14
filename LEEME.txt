@@ -32,18 +32,28 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    Otras opciones (Netlify, Cloudflare Pages) sirven para la web, pero no ejecutan la tarea
    de avisos: en ese caso pon alertsUrl: '' en config.js.
 
-3) EN LA TABLET
-   - Abre la dirección en Chrome. Menú ⋮ -> "Añadir a pantalla de inicio" (se abre a pantalla completa).
-   - Si no, doble toque sobre la hora o sobre la temperatura = pantalla completa.
-   - Pantalla siempre encendida: Ajustes -> Opciones de desarrollador -> "Mantener activo"
-     (mantiene la pantalla encendida mientras carga). Si no ves "Opciones de desarrollador":
-     Ajustes -> Información del tablet -> toca 7 veces "Número de compilación".
-   - Déjala siempre enchufada con un cargador de buena calidad.
+3) EN LA TABLET (Lenovo Tab 2 A10-30, Android 6) — para que arranque sola
+   Opción A (recomendada): Fully Kiosk Browser 1.61
+     · Es la última versión que funciona en Android 6 (dejan de actualizarla para Android 6 a
+       finales de 2026, pero sigue funcionando). La versión gratuita basta.
+     · Instálala desde Google Play o desde fully-kiosk.com (APK 1.61).
+     · Settings -> Web Content Settings -> Start URL: https://alvarogp30699.github.io/estacion-meteorologica/
+     · Settings -> Device Management -> Keep Screen On: activado.
+     · Settings -> Device Management -> Launch on Boot: activado (arranca al encender).
+     · Settings -> Web Auto Reload -> Auto Reload on Network Reconnect: activado.
+     · Settings -> Universal Launcher / Kiosk Mode: opcional (bloquea salir de la app).
+     · Ajusta el brillo de la pantalla en Device Management (Screen Brightness).
+   Opción B (gratis y de código abierto): WebView Kiosk (F-Droid), Android 5 o superior.
+   Opción C (sin instalar nada): Chrome -> menú -> "Añadir a pantalla de inicio" y
+     Ajustes -> Opciones de desarrollador -> "Pantalla activa" mientras carga. No arranca sola.
 
-   - RECOMENDADO para dejarla fija 24/7: un navegador kiosko (p. ej. Fully Kiosk Browser)
-     en vez de Chrome. Arranca solo al encender la tablet, mantiene la pantalla activa,
-     recarga si la página se cuelga y puede bajar el brillo real de noche.
-     Comprueba que la versión que instales sea compatible con Android 6.
+   Antes, en la tablet: Ajustes -> Pantalla -> Suspender: el máximo posible, y deja la tablet
+   siempre enchufada con un cargador de calidad.
+
+   Una vez abierta la primera vez con internet, la web queda guardada en la tablet: si se
+   reinicia sin Wi-Fi, carga igual con los últimos datos (hasta 24 h).
+   Cuando se publica una versión nueva en GitHub, la tablet la detecta y se recarga sola
+   (lo comprueba cada 10 min).
 
 4) CAMBIAR AJUSTES
    Edita config.js (ubicación, zoom, velocidad de la animación, frecuencia de actualización...).
@@ -56,8 +66,12 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
 6) FUNCIONAMIENTO 24/7
    - Si se cae la conexión, reintenta a los 30 s, 1, 2 y 5 min.
    - Si el radar lleva más de 20 min sin actualizarse, la hora se pone en naranja.
-   - De 23:00 a 07:00 se atenúa la pantalla (un toque la ilumina 1 minuto).
-     El velo es por software: el brillo real de la pantalla lo controla el kiosko o Android.
+   - De 23:00 a 07:00 pasa a «reloj nocturno»: fondo negro con la hora grande, temperatura,
+     lluvia y avisos (un toque muestra la pantalla normal 1 minuto). Con nightMode: 'atenuar'
+     en config.js, en vez del reloj se oscurece la pantalla normal.
+   - Toca la tarjeta de la temperatura para ver las últimas 24 h (medidas en Reus si hay
+     datos de la estación; si no, del modelo).
+   - En el detalle de «Hoy» sale la calidad del aire y el polen (orientativo).
    - Cada día a las 04:00 se recarga sola para liberar memoria.
    - El radar está quieto en la hora actual; con el play da 3 vueltas y vuelve solo.
    - Toca el mapa para ampliar el radar (con zoom); vuelve solo a los 30 s.

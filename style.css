@@ -372,6 +372,29 @@ button { font-family: inherit; }
 .al-m { font-size: 18px; font-weight: 600; }
 .al-d { font-size: 15px; color: #C5D1E6; margin-top: 3px; }
 
+/* Gráfico de 24 h */
+#now { cursor: pointer; }
+svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-family: 'Inter', Roboto, Arial, sans-serif; }
+.dp-foot .k1, .dp-foot .k2 { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+.dp-foot .k1 { background: #FFB86B; }
+.dp-foot .k2 { background: #5BA8FF; height: 10px; vertical-align: -1px; }
+
+/* Reloj nocturno */
+#nightclock { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 5500; background: #000; color: #5F6A7E; }
+#nightclock.on { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+.nc-in { text-align: center; -webkit-transition: -webkit-transform 2s; transition: transform 2s; }
+.nc-clock { font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; font-weight: 500; font-size: 220px; line-height: 1; letter-spacing: -6px; color: #7D889C; }
+.nc-date { font-size: 26px; margin-top: 8px; }
+.nc-now { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; margin-top: 26px; font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; font-size: 56px; color: #7D889C; }
+.nc-now svg { width: 60px; height: 60px; margin-right: 14px; opacity: 0.6; }
+.nc-nh { font-size: 22px; margin-top: 14px; }
+.nc-nh.wet { color: #5F82AD; }
+.nc-al { margin-top: 16px; }
+.nc-al span { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 18px; font-weight: 600; border: 1px solid; }
+.nc-al .amarillo { color: #C9A93A; border-color: #6B5A20; }
+.nc-al .naranja { color: #D9853B; border-color: #6E4420; }
+.nc-al .rojo { color: #E06A6A; border-color: #7A2E2E; }
+
 /* Detalle de un día */
 .day { cursor: pointer; }
 .day.sel { background: rgba(94, 200, 255, 0.10); border-radius: 12px; }

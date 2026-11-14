@@ -50,8 +50,11 @@ def resumir(datos, ahora):
         # 'prec' es la lluvia de la hora que termina en 'fint'
         if fecha(o["fint"]).astimezone(TZ).date() == hoy and o.get("prec") is not None:
             lluvia += float(o["prec"])
+    horas = []
+    for o in obs[-24:]:
+        horas.append({"t": fecha(o["fint"]).isoformat(), "temp": o.get("ta"), "rain": o.get("prec"), "hum": o.get("hr"), "wind": kmh(o.get("vv"))})
     return {
-        "station": NOMBRE, "id": ESTACION,
+        "station": NOMBRE, "id": ESTACION, "hours": horas,
         "time": fecha(u["fint"]).isoformat(),
         "temp": u.get("ta"), "hum": u.get("hr"),
         "wind": kmh(u.get("vv")), "gust": kmh(u.get("vmax")), "dir": u.get("dv"),

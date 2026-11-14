@@ -51,11 +51,15 @@ window.CONFIG = {
   // Desde esta hora (y hasta nightTo) la tarjeta «Mañana» sustituye a Mar y Sol
   tomorrowFrom: '20:00',
 
-  // Modo noche: atenúa la pantalla y ralentiza el radar. Un toque la ilumina 1 minuto.
+  // Modo noche. Un toque muestra la pantalla normal 1 minuto.
   nightFrom: '23:00',    // pon '' para desactivarlo
   nightTo: '07:00',
-  nightDim: 0.55,        // 0 = nada, 0.8 = muy oscuro
+  nightMode: 'reloj',    // 'reloj' = solo hora, temperatura, lluvia y avisos en negro · 'atenuar' = pantalla normal oscurecida
+  nightDim: 0.55,        // (modo 'atenuar') 0 = nada, 0.8 = muy oscuro
   nightFrameMs: 1400,
+
+  // Se recarga sola cuando se publica una versión nueva en GitHub
+  autoUpdate: true,
 
   // Recarga automática diaria para liberar memoria ('' para desactivar)
   reloadAt: '04:00',

@@ -61,6 +61,8 @@
     nightFrom: def(C.nightFrom, '23:00'),
     nightTo: C.nightTo || '07:00',
     nightDim: def(C.nightDim, 0.55),
+    nightMode: C.nightMode || 'reloj',
+    autoUpdate: C.autoUpdate !== false,
     nightFrameMs: C.nightFrameMs || 1400,
     tomorrowFrom: C.tomorrowFrom || '20:00',
     radarFade: C.radarFade !== false,
@@ -254,6 +256,9 @@
     }
 
     var measured = applyObsStation();
+    if (AIR && ((AIR.aqi != null && AIR.aqi >= 60) || (AIR.pollen && AIR.pollen.level === 2))) {
+      $('range').textContent += (AIR.aqi >= 60 ? ' · Aire ' + aqiTxt(AIR.aqi).toLowerCase() : '') + (AIR.pollen && AIR.pollen.level === 2 ? ' · Polen alto' : '');
+    }
     $('rain-l').textContent = rainSource === 'estación' ? 'Llovido hoy' : (rainSource === 'radar' ? 'Llovido hoy · radar' : 'Llovido hoy · modelo');
     renderSun(dl);
     renderEvening(d);
@@ -534,6 +539,7 @@
       ['Viento', d.wind_speed_10m_max ? Math.round(d.wind_speed_10m_max[j]) + ' km/h' + (d.wind_direction_10m_dominant ? ' ' + compass(d.wind_direction_10m_dominant[j]) : '') : '--', d.wind_gusts_10m_max ? 'Rachas ' + Math.round(d.wind_gusts_10m_max[j]) + ' km/h' : ''],
       ['Sol', d.sunrise ? hhmm(parseLocal(d.sunrise[j])) + ' – ' + hhmm(parseLocal(d.sunset[j])) : '--', d.uv_index_max ? 'UV máx. ' + Math.round(d.uv_index_max[j] || 0) : '']
     ];
+    if (j === 0 && AIR) { facts.push(['Aire', AIR.aqi != null ? aqiTxt(AIR.aqi) : '--', 'Polen ' + pollenTxt(AIR.pollen)]); }
     var fh = '';
     for (k = 0; k < facts.length; k++) { fh += '<div class="f"><div class="l">' + facts[k][0] + '</div><div class="v">' + facts[k][1] + '</div><div class="s">' + facts[k][2] + '</div></div>'; }
 
@@ -590,6 +596,34 @@
     $('sea').innerHTML = (c.sea_surface_temperature == null ? '--' : Math.round(c.sea_surface_temperature)) + '° <span class="u">agua</span>';
     setSub('sea-s', c.wave_height == null ? '&nbsp;' : 'Olas ' + fmtNum(c.wave_height, 1) + ' m' + (c.wave_direction == null ? '' : ' · ' + compass(c.wave_direction)), c.wave_height >= 2 ? 'warn' : '');
   }
+
+  /* ======================= Calidad del aire y polen (Open-Meteo, CAMS) ======================= */
+  var AIR = null;
+  var AQI_TXT = [[20, 'Buena'], [40, 'Razonable'], [60, 'Regular'], [80, 'Mala'], [100, 'Muy mala'], [1e9, 'Extremadamente mala']];
+  var POLLEN = { alder_pollen: ['Aliso', 10, 100], birch_pollen: ['Abedul', 10, 100], grass_pollen: ['Gramíneas', 10, 50], mugwort_pollen: ['Artemisa', 10, 50], olive_pollen: ['Olivo', 50, 200], ragweed_pollen: ['Ambrosía', 10, 50] };
+  function loadAir() {
+    if (cfg.demo) { AIR = { aqi: 18, pollen: { name: 'Gramíneas', level: 0 } }; return; }
+    var url = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + cfg.lat + '&longitude=' + cfg.lon +
+      '&current=european_aqi,pm2_5,pm10&hourly=' + Object.keys(POLLEN).join(',') + '&forecast_days=1&timezone=auto';
+    getJSON(url, function (d) {
+      var a = { aqi: d.current ? d.current.european_aqi : null, pm25: d.current ? d.current.pm2_5 : null, pollen: null };
+      if (d.hourly) {
+        var best = null;
+        for (var k in POLLEN) {
+          if (!POLLEN.hasOwnProperty(k) || !d.hourly[k]) { continue; }
+          var mx = 0;
+          for (var i = 0; i < d.hourly[k].length; i++) { mx = Math.max(mx, d.hourly[k][i] || 0); }
+          var lv = mx >= POLLEN[k][2] ? 2 : (mx >= POLLEN[k][1] ? 1 : 0);
+          if (!best || lv > best.level || (lv === best.level && mx > best.v)) { best = { name: POLLEN[k][0], level: lv, v: mx }; }
+        }
+        a.pollen = best;
+      }
+      AIR = a;
+      if (W) { renderWeather(W); }
+    }, function () { /* se mantiene el último dato */ });
+  }
+  function aqiTxt(v) { for (var i = 0; i < AQI_TXT.length; i++) { if (v < AQI_TXT[i][0]) { return AQI_TXT[i][1]; } } return ''; }
+  function pollenTxt(p) { return p ? ['bajo', 'moderado', 'alto'][p.level] + (p.level ? ' (' + p.name.toLowerCase() + ')' : '') : '--'; }
 
   /* ======================= Estación de AEMET (datos medidos) ======================= */
   /* observacion.json lo genera la tarea de GitHub si el repositorio tiene la clave AEMET_API_KEY */
@@ -711,6 +745,51 @@
     }
     afterAlertLayout(wasWide);
   }
+  /* Gráfico de las últimas 24 h: lo medido en la estación si lo hay; si no, el modelo */
+  function openHistory() {
+    if (!W) { return; }
+    var pts = [], src;
+    if (obsFresh() && OBS.hours && OBS.hours.length > 3) {
+      src = 'Medido en ' + OBS.station;
+      for (var i = 0; i < OBS.hours.length; i++) { var o = OBS.hours[i]; pts.push({ d: new Date(o.t), t: o.temp, r: o.rain || 0 }); }
+    } else {
+      src = 'Modelo de Open-Meteo (no hay datos medidos)';
+      var h = W.hourly, idx = hourIndex(h, W.current);
+      for (var k = Math.max(0, idx - 24); k <= idx; k++) { pts.push({ d: parseLocal(h.time[k]), t: h.temperature_2m[k], r: h.precipitation[k] || 0 }); }
+    }
+    if (pts.length < 2) { return; }
+    var Wd = 1000, Hd = 230, L = 40, R = 40, T = 22, B = 34, lo = 1e9, hi = -1e9, rmax = 0, rsum = 0, n = pts.length;
+    for (i = 0; i < n; i++) { if (pts[i].t != null) { lo = Math.min(lo, pts[i].t); hi = Math.max(hi, pts[i].t); } rmax = Math.max(rmax, pts[i].r); rsum += pts[i].r; }
+    lo = Math.floor(lo - 1); hi = Math.ceil(hi + 1);
+    function X(i) { return L + (Wd - L - R) * i / (n - 1); }
+    function Y(t) { return T + (Hd - T - B) * (hi - t) / (hi - lo); }
+    var bw = (Wd - L - R) / n * 0.6, svg = '', line = [], imx = 0, imn = 0;
+    for (i = 0; i < n; i++) {
+      if (pts[i].r > 0) {
+        var bh = Math.max(3, pts[i].r / Math.max(rmax, 2) * (Hd - T - B) * 0.6);
+        svg += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + (Hd - B - bh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="2" fill="#5BA8FF" opacity="0.85"/>';
+        svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - B - bh - 4).toFixed(1) + '" fill="#DCE8FA" font-size="12" text-anchor="middle">' + mmTxt(pts[i].r) + '</text>';
+      }
+      if (pts[i].t != null) { line.push(X(i).toFixed(1) + ',' + Y(pts[i].t).toFixed(1)); if (pts[i].t > pts[imx].t) { imx = i; } if (pts[i].t < pts[imn].t) { imn = i; } }
+      if (pts[i].d.getHours() % 3 === 0) { svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - 12) + '" fill="#9AA9C2" font-size="13" text-anchor="middle">' + pad(pts[i].d.getHours()) + 'h</text>'; }
+    }
+    for (var g = lo; g <= hi; g += Math.max(1, Math.round((hi - lo) / 4))) {
+      svg = '<line x1="' + L + '" x2="' + (Wd - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '" stroke="#22304A"/><text x="' + (L - 8) + '" y="' + (Y(g) + 4).toFixed(1) + '" fill="#9AA9C2" font-size="12" text-anchor="end">' + g + '°</text>' + svg;
+    }
+    svg += '<polyline points="' + line.join(' ') + '" fill="none" stroke="#FFB86B" stroke-width="2.5" stroke-linejoin="round"/>';
+    svg += '<text x="' + X(imx).toFixed(1) + '" y="' + (Y(pts[imx].t) - 8).toFixed(1) + '" fill="#FFB86B" font-size="13" font-weight="600" text-anchor="middle">máx ' + fmtNum(pts[imx].t, 1) + '°</text>';
+    svg += '<text x="' + X(imn).toFixed(1) + '" y="' + (Y(pts[imn].t) + 18).toFixed(1) + '" fill="#8EC1FF" font-size="13" font-weight="600" text-anchor="middle">mín ' + fmtNum(pts[imn].t, 1) + '°</text>';
+    var html = '<div class="dp-box"><div class="dp-head">' + svgIcon(wmo(W.current.weather_code, W.current.is_day).kind) +
+      '<div class="dp-t"><div class="dp-n">Últimas 24 horas · ' + esc(src) + '</div><div class="dp-c">Temperatura <b>' + fmtNum(pts[imn].t, 1) + '° – ' + fmtNum(pts[imx].t, 1) + '°</b> · Lluvia <b>' + mmTxt(rsum) + ' mm</b></div></div>' +
+      '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
+      '<svg class="hist" viewBox="0 0 ' + Wd + ' ' + Hd + '" preserveAspectRatio="none" aria-label="Gráfico de temperatura y lluvia de las últimas 24 horas">' + svg + '</svg>' +
+      '<div class="dp-foot"><span class="k1"></span>temperatura · <span class="k2"></span>lluvia por hora (mm) · toca fuera para cerrar</div></div>';
+    $('daypanel').innerHTML = html;
+    $('daypanel').className = 'on';
+    clearTimeout(dayTimer);
+    dayTimer = setTimeout(closeDay, 30000);
+  }
+
   /* Panel con todos los avisos (al pulsar la franja o «+N avisos») */
   function openAlerts() {
     var list = activeAlerts();
@@ -1222,7 +1301,7 @@
       el.textContent = (lastError ? 'Sin conexión · reintentando' : 'Cargando datos…') + radarTxt;
     } else {
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
-      var txt = min < 1 ? 'ahora' : 'hace ' + min + ' min';
+      var txt = min < 1 ? 'ahora' : (min < 90 ? 'hace ' + min + ' min' : 'hace ' + Math.round(min / 60) + ' h');
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
       else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
     }
@@ -1253,7 +1332,7 @@
       var raw = localStorage.getItem(CACHE_KEY);
       if (!raw) { return; }
       var c = JSON.parse(raw);
-      if (c && c.data && Date.now() - c.t < 6 * 3600 * 1000) { renderWeather(c.data); lastOk = c.t; updateStatus(); }
+      if (c && c.data && Date.now() - c.t < 24 * 3600 * 1000) { renderWeather(c.data); lastOk = c.t; updateStatus(); }
     } catch (e) { /* caché inválida */ }
   }
 
@@ -1308,10 +1387,35 @@
   var awakeUntil = 0, startedAt = Date.now(), wasNight = null;
   function applyNight() {
     var night = isNight() && Date.now() > awakeUntil;
+    var clockMode = cfg.nightMode === 'reloj';
     var dim = $('dim');
-    dim.style.opacity = night ? cfg.nightDim : 0;
-    dim.style.display = night ? 'block' : 'none';
+    dim.style.opacity = night && !clockMode ? cfg.nightDim : 0;
+    dim.style.display = night && !clockMode ? 'block' : 'none';
+    $('nightclock').className = night && clockMode ? 'on' : '';
+    if (night && clockMode) { updateNightClock(true); }
     if (night !== wasNight) { wasNight = night; if (playing) { schedule(); } }
+  }
+  /* Pantalla de noche: solo hora, temperatura, lluvia y avisos. Se desplaza un poco cada minuto. */
+  var ncShift = 0;
+  function updateNightClock(move) {
+    if ($('nightclock').className !== 'on') { return; }
+    var d = now(), box = $('nightclock');
+    box.querySelector('.nc-clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    box.querySelector('.nc-date').textContent = DOW_LONG[d.getDay()] + ', ' + d.getDate() + ' de ' + MONTHS[d.getMonth()];
+    if (W) {
+      var w = wmo(W.current.weather_code, W.current.is_day);
+      box.querySelector('.nc-now').innerHTML = svgIcon(w.kind) + '<span>' + $('temp').textContent + '</span>';
+    }
+    var nh = $('nexthour');
+    box.querySelector('.nc-nh').textContent = nh.className.indexOf('hidden') >= 0 ? '' : nh.textContent.replace(/\s*·\s*/g, ' · ');
+    box.querySelector('.nc-nh').className = 'nc-nh' + (nh.className.indexOf('wet') >= 0 ? ' wet' : '');
+    var a = activeAlerts()[0];
+    box.querySelector('.nc-al').innerHTML = a ? '<span class="' + a.level + '">' + LEVEL_NAME[a.level] + ' · ' + esc(a.event) + ' ' + whenTxt(a) + '</span>' : '';
+    if (move) {
+      ncShift = (ncShift + 1) % 6;
+      var dx = [0, 24, -18, 12, -24, 6][ncShift], dy = [0, -14, 10, 18, -8, -18][ncShift];
+      box.querySelector('.nc-in').style.webkitTransform = box.querySelector('.nc-in').style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    }
   }
   function wakeFromNight(e) { if (e && e.target && e.target.parentNode && e.target.parentNode.id === 'demobar') { return; } if (isNight()) { awakeUntil = Date.now() + 60000; applyNight(); } }
   function minuteTick() {
@@ -1405,7 +1509,7 @@
   function demoBar() {
     var bar = document.createElement('div');
     bar.id = 'demobar';
-    var opts = [['', 'Tarde 17:17'], ['amarillo', 'Aviso amarillo'], ['naranja', 'Aviso naranja'], ['rojo', 'Aviso rojo'], ['tarde', 'Noche 21:35'], ['noche', 'Atenuado']];
+    var opts = [['', 'Tarde 17:17'], ['amarillo', 'Aviso amarillo'], ['naranja', 'Aviso naranja'], ['rojo', 'Aviso rojo'], ['tarde', 'Noche 21:35'], ['noche', 'Reloj noche']];
     var mode = HASH === 'tarde' ? 'tarde' : '';
     var html = '<span>Demo · datos inventados</span>';
     for (var i = 0; i < opts.length; i++) { html += '<button type="button" data-v="' + opts[i][0] + '">' + opts[i][1] + '</button>'; }
@@ -1453,6 +1557,23 @@
     } catch (e) { /* no disponible en navegadores antiguos */ }
   }
 
+  /* ======================= Actualización automática y uso sin conexión ======================= */
+  var APP_V = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  function checkVersion() {
+    if (cfg.demo || !cfg.autoUpdate || !APP_V || APP_V.indexOf('__') === 0) { return; }
+    getJSON('version.json?t=' + Date.now(), function (d) {
+      if (d && d.v && d.v !== APP_V) {
+        /* no recarga si estás mirando algo; lo intenta en el siguiente ciclo */
+        if (full || $('daypanel').className === 'on') { return; }
+        location.reload();
+      }
+    }, function () { /* sin conexión: ya se comprobará */ });
+  }
+  function registerSW() {
+    if (cfg.demo || !('serviceWorker' in navigator) || location.protocol !== 'https:') { return; }
+    try { navigator.serviceWorker.register('sw.js').then(function () {}, function () {}); } catch (e) { /* no disponible */ }
+  }
+
   /* ======================= Arranque ======================= */
   function start() {
     $('place').textContent = cfg.name;
@@ -1468,10 +1589,13 @@
     loadSea();
     loadAlerts();
     loadObs();
+    loadAir();
+    registerSW();
 
     $('play').onclick = function () { setPlaying(!playing); touchFull(); };
     $('fullclose').onclick = exitFull;
     $('wide-alert').onclick = openAlerts;
+    $('now').onclick = openHistory;
     $('col-alert').onclick = function () { if (this.className.indexOf('calm') < 0) { openAlerts(); } };
     $('days').onclick = function (e) {
       var t = e.target;
@@ -1497,13 +1621,15 @@
     setTimeout(fixMapSize, 600);
     setTimeout(fixMapSize, 2500);
 
-    setInterval(function () { updateClock(); if (full) { updateFullInfo(); } }, 5000);
+    setInterval(function () { updateClock(); if (full) { updateFullInfo(); } updateNightClock(false); }, 5000);
     setInterval(updateStatus, 30000);
     setInterval(minuteTick, 60000);
     setInterval(loadForecastGrid, cfg.forecastEveryMin * 60000);
     setInterval(loadSea, cfg.seaEveryMin * 60000);
     setInterval(loadAlerts, cfg.alertsEveryMin * 60000);
     setInterval(loadObs, 10 * 60000);
+    setInterval(loadAir, 60 * 60000);
+    setInterval(checkVersion, 10 * 60000);
     minuteTick();
     if (cfg.demo) { demoBar(); }
     document.addEventListener('touchstart', wakeFromNight, false);
