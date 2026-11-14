@@ -1675,6 +1675,7 @@
     /* el desplazamiento antiquemado (transform) rompería el «position: fixed» del mapa ampliado */
     var ap = $('app'); ap.style.webkitTransform = 'none'; ap.style.transform = 'none';
     document.documentElement.className += ' mapfull';
+    $('fullclose').textContent = isCompact() ? '✕ Volver' : 'Toca aquí para volver · vuelve sola en ' + cfg.fullRadarSec + ' s';
     updateFullInfo();
     zoomCtl = L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar', zoomOutTitle: 'Alejar' }).addTo(map);
     applyCompactMap();
