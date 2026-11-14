@@ -101,8 +101,20 @@ def extraer(feed, ahora):
             continue
         vistos.add(clave)
         avisos.append(av)
-    avisos.sort(key=lambda x: x["onset"] or "")
-    return avisos
+    # une avisos del mismo nivel y fenómeno cuyos horarios se solapan (AEMET emite tramos sueltos)
+    avisos.sort(key=lambda x: (x["level"], x["event"], x["onset"] or ""))
+    unidos = []
+    for av in avisos:
+        u = unidos[-1] if unidos else None
+        if u and u["level"] == av["level"] and u["event"] == av["event"] and (av["onset"] or "") <= u["expires"]:
+            if av["expires"] > u["expires"]:
+                u["expires"] = av["expires"]
+            if not u["detail"] and av["detail"]:
+                u["detail"] = av["detail"]
+            continue
+        unidos.append(dict(av))
+    unidos.sort(key=lambda x: x["onset"] or "")
+    return unidos
 
 
 def main():
