@@ -63,6 +63,8 @@
     nightFrom: def(C.nightFrom, '23:00'),
     nightTo: C.nightTo || '07:00',
     nightDim: def(C.nightDim, 0.55),
+    nightBrightness: def(C.nightBrightness, 1),
+    dayBrightness: def(C.dayBrightness, 160),
     nightMode: C.nightMode || 'reloj',
     autoUpdate: C.autoUpdate !== false,
     batteryWarn: def(C.batteryWarn, 30),
@@ -2323,7 +2325,22 @@
     dim.style.display = night && !clockMode ? 'block' : 'none';
     $('nightclock').className = night && clockMode ? 'on' : '';
     if (night && clockMode) { updateNightClock(true); }
-    if (night !== wasNight) { wasNight = night; if (playing) { schedule(); } }
+    if (night !== wasNight) { wasNight = night; if (playing) { schedule(); } setBrightness(night); }
+  }
+  /* Brillo de la pantalla con Fully Kiosk (necesita «Enable JavaScript Interface» en Fully):
+     al mínimo de noche y el de siempre de día o al tocar la pantalla */
+  var dayBright = null;
+  function setBrightness(night) {
+    var f = window.fully;
+    if (!f || !f.setScreenBrightness) { return; }
+    try {
+      if (night) {
+        if (dayBright === null && f.getScreenBrightness) { var b = +f.getScreenBrightness(); if (b > cfg.nightBrightness) { dayBright = b; } }
+        f.setScreenBrightness(cfg.nightBrightness);
+      } else {
+        f.setScreenBrightness(dayBright !== null ? dayBright : cfg.dayBrightness);
+      }
+    } catch (e) { /* Fully sin interfaz JavaScript */ }
   }
   /* Pantalla de noche: solo hora, temperatura, lluvia y avisos. Se desplaza un poco cada minuto. */
   var ncShift = 0;

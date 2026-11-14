@@ -68,6 +68,8 @@ window.CONFIG = {
   nightFrom: '23:00',    // pon '' para desactivarlo
   nightTo: '07:00',
   nightMode: 'reloj',    // 'reloj' = solo hora, temperatura, lluvia y avisos en negro · 'atenuar' = pantalla normal oscurecida
+  nightBrightness: 1,     // brillo de 23 a 7 con Fully (0–255; 1 = mínimo sin apagar)
+  dayBrightness: 160,     // brillo de día si Fully no dice cuál tenías (0–255)
   nightDim: 0.55,        // (modo 'atenuar') 0 = nada, 0.8 = muy oscuro
   nightFrameMs: 1400,
 
