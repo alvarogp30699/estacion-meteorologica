@@ -689,3 +689,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (min-width: 560px) and (max-width: 900px) and (min-height: 561px) {
   .day { -webkit-flex: 0 0 25%; flex: 0 0 25%; }
 }
+
+/* Mapa ampliado en el móvil: fondo opaco, sin scroll detrás y botones sin taparse */
+html.mapfull, html.mapfull body { overflow: hidden; }
+@media (max-width: 900px), (max-height: 560px) {
+  #radar.full { background: #0B1220; }
+  #radar.full #fullinfo { display: none; }
+  #radar.full #fullclose { top: 56px; bottom: auto; left: 10px; right: auto; padding: 8px 14px; font-size: 14px; color: #DCE8FA; background: rgba(15, 23, 40, 0.92); border: 1px solid #2D3D5C; }
+  #radar.full .leaflet-top.leaflet-right { top: 50px; }
+  #radar.full #chip-r { max-width: 45%; }
+}
+@media (max-width: 900px), (max-height: 560px) {
+  #radar.full { height: auto; min-height: 0; max-height: none; margin: 0; }
+}

@@ -862,6 +862,7 @@
   function antiBurn() {
     var pos = [[0, 0], [2, 1], [3, -1], [1, -3], [-2, -2], [-3, 1], [-1, 3], [2, 3]], k = 0;
     setInterval(function () {
+      if (isCompact() || full) { return; } // solo en la tablet fija y con el mapa normal
       k = (k + 1) % pos.length;
       var t = 'translate(' + pos[k][0] + 'px, ' + pos[k][1] + 'px)';
       var a = $('app'); a.style.webkitTransform = t; a.style.transform = t;
@@ -1671,6 +1672,9 @@
   function enterFull() {
     full = true;
     $('radar').className += ' full';
+    /* el desplazamiento antiquemado (transform) rompería el «position: fixed» del mapa ampliado */
+    var ap = $('app'); ap.style.webkitTransform = 'none'; ap.style.transform = 'none';
+    document.documentElement.className += ' mapfull';
     updateFullInfo();
     zoomCtl = L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar', zoomOutTitle: 'Alejar' }).addTo(map);
     applyCompactMap();
@@ -1682,6 +1686,7 @@
     full = false;
     clearTimeout(fullTimer);
     $('radar').className = $('radar').className.replace(/\s*full/g, '');
+    document.documentElement.className = document.documentElement.className.replace(/\s*mapfull/g, '');
     if (zoomCtl) { map.removeControl(zoomCtl); zoomCtl = null; }
     applyCompactMap();
     userMoved = false;
