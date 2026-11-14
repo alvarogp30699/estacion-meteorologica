@@ -22,6 +22,13 @@ jobs:
         env:
           ZONAS: "Litoral sur de Tarragona|Litoral sud de Tarragona"
         run: python3 tools/avisos.py
+      - name: Avisos de Meteocat (necesita el secreto METEOCAT_API_KEY)
+        continue-on-error: true
+        env:
+          METEOCAT_API_KEY: ${{ secrets.METEOCAT_API_KEY }}
+          COMARCA: "Tarragonès"
+          COMARCA_ID: "36"
+        run: python3 tools/meteocat.py
       - name: Estación de AEMET (necesita el secreto AEMET_API_KEY)
         continue-on-error: true
         env:
@@ -43,7 +50,7 @@ jobs:
           python3 tools/rayos.py
       - name: Guardar si ha cambiado
         run: |
-          git add -A avisos.json observacion.json rayos.json 2>/dev/null || true
+          git add -A avisos.json meteocat.json observacion.json rayos.json 2>/dev/null || true
           if git diff --cached --quiet; then echo "Nada que guardar"; exit 0; fi
           git config user.name "avisos-bot"
           git config user.email "avisos-bot@users.noreply.github.com"

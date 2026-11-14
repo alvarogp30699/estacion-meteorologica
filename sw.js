@@ -1,7 +1,7 @@
 /* Guarda la web en la tablet para que cargue aunque no haya internet al encenderla.
    Los archivos propios se piden primero a la red (para recibir actualizaciones) y, si falla, se sirven de la copia. */
-var CACHE = 'estacion-20261114213700';
-var SHELL = ['./', 'index.html', 'style.css?v=20261114213700', 'app.js?v=20261114213700', 'config.js?v=20261114213700', 'manifest.json',
+var CACHE = 'estacion-20261114214601';
+var SHELL = ['./', 'index.html', 'style.css?v=20261114214601', 'app.js?v=20261114214601', 'config.js?v=20261114214601', 'manifest.json',
   'leaflet/leaflet.js', 'leaflet/leaflet.css', 'icons/icon-192.png',
   'fonts/inter-latin-400-normal.woff2', 'fonts/inter-latin-500-normal.woff2', 'fonts/inter-latin-600-normal.woff2',
   'fonts/space-grotesk-latin-500-normal.woff2', 'fonts/space-grotesk-latin-600-normal.woff2'];

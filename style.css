@@ -613,13 +613,28 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
 #tomorrow .fr .umb { color: #8EC1FF; font-weight: 600; }
 
 /* Botón de nubes del satélite */
-#sat-btn { margin-left: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid #2D3D5C; background: transparent; color: #9AA9C2; font: inherit; font-size: 13px; cursor: pointer; }
-#sat-btn.on { background: #5EC8FF; border-color: #5EC8FF; color: #0B1220; font-weight: 600; }
+#sat-btn, #wind-btn { margin-left: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid #2D3D5C; background: transparent; color: #9AA9C2; font: inherit; font-size: 13px; cursor: pointer; }
+#sat-btn.on, #wind-btn.on { background: #5EC8FF; border-color: #5EC8FF; color: #0B1220; font-weight: 600; }
 #sat-btn.loading { opacity: 0.6; }
 #sat-btn.err { background: #FF9A3D; border-color: #FF9A3D; }
 #app { -webkit-transition: -webkit-transform 2s; transition: transform 2s; }
 @media (max-width: 520px) {
   #chip-l .rl { display: none; }
   #chip-l .dot { margin-right: 0; }
-  #sat-btn { margin-left: 8px; }
+  #sat-btn, #wind-btn { margin-left: 6px; padding: 3px 8px; }
 }
+
+.al-src { display: inline-block; margin-left: 6px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #8494AF; }
+
+/* Fiabilidad de la previsión */
+.day .n .cfd { display: inline-block; width: 7px; height: 7px; border-radius: 4px; margin-left: 5px; vertical-align: 2px; }
+.cfd.media { background: #FFB86B; }
+.cfd.baja { background: #FF5A4E; }
+.cf { text-transform: uppercase; font-weight: 700; letter-spacing: 1px; }
+.cf.alta { color: #3DDC84; } .cf.media { color: #FFB86B; } .cf.baja { color: #FF5A4E; }
+.sun-t.mdl td:first-child { color: #C5D1E6; }
+
+#wind-btn { margin-left: 6px; }
+.wind-cv { position: absolute; left: 0; top: 0; pointer-events: none; }
+.sun-t.mdl tr:nth-child(2) td { font-weight: 400; color: inherit; }
+.sun-t.mdl tr:nth-child(2) td:first-child { color: #C5D1E6; }
