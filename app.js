@@ -2347,7 +2347,23 @@
       box.querySelector('.nc-in').style.webkitTransform = box.querySelector('.nc-in').style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     }
   }
-  function wakeFromNight(e) { if (e && e.target && e.target.parentNode && e.target.parentNode.id === 'demobar') { return; } if (isNight()) { awakeUntil = Date.now() + 60000; applyNight(); } }
+  /* el primer toque de noche solo despierta la pantalla: ese toque no llega a lo que hay detrás */
+  var swallowUntil = 0;
+  function wakeFromNight(e) {
+    if (e && e.target && e.target.parentNode && e.target.parentNode.id === 'demobar') { return; }
+    if (!isNight()) { return; }
+    var asleep = Date.now() > awakeUntil && !isCompact();
+    awakeUntil = Date.now() + 60000;
+    if (asleep) {
+      swallowUntil = Date.now() + 800;
+      if (e && e.cancelable && e.preventDefault) { e.preventDefault(); }
+      if (e && e.stopPropagation) { e.stopPropagation(); }
+    }
+    applyNight();
+  }
+  function swallowClick(e) {
+    if (Date.now() < swallowUntil) { if (e.preventDefault) { e.preventDefault(); } if (e.stopPropagation) { e.stopPropagation(); } }
+  }
   function minuteTick() {
     applyNight();
     if (W) { renderSun(W.daily); renderNextHour(W); renderEvening(W); }
@@ -2777,8 +2793,10 @@
     setInterval(loadLightning, 5 * 60000);
     minuteTick();
     if (cfg.demo) { demoBar(); }
-    document.addEventListener('touchstart', wakeFromNight, false);
-    document.addEventListener('mousedown', wakeFromNight, false);
+    var cap = { capture: true, passive: false };
+    try { document.addEventListener('touchstart', wakeFromNight, cap); } catch (e) { document.addEventListener('touchstart', wakeFromNight, true); }
+    document.addEventListener('mousedown', wakeFromNight, true);
+    ['click', 'touchend', 'mouseup', 'pointerup', 'pointerdown'].forEach(function (ev) { document.addEventListener(ev, swallowClick, true); });
     document.addEventListener('touchstart', unlockAudio, false);
     document.addEventListener('mousedown', unlockAudio, false);
 
