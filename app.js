@@ -48,8 +48,9 @@
     radarForecast: C.radarForecast !== false,
     fcOpacity: C.fcOpacity || 0.85,
     radarStaleMin: C.radarStaleMin || 20,
-    basemapUrl: C.basemapUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    basemapAttribution: C.basemapAttribution || '&copy; OpenStreetMap &copy; CARTO',
+    basemapUrl: C.basemapUrl || 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    labelsUrl: def(C.labelsUrl, 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'),
+    basemapAttribution: C.basemapAttribution || 'Mapa &copy; Esri, HERE, Garmin, &copy; OpenStreetMap',
     reloadAt: def(C.reloadAt, '04:00'),
     nightFrom: def(C.nightFrom, '23:00'),
     nightTo: C.nightTo || '07:00',
@@ -277,6 +278,12 @@
     function durTxt(len) { var mins = len * 15; return mins >= 60 ? (mins % 60 ? fmtNum(mins / 60, 1) + ' h' : (mins / 60) + ' h') : mins + ' min'; }
 
     var icon = lineIcon(I_UMB, '#7FB6FF');
+    /* el radar manda sobre el modelo si ve lluvia encima ahora mismo */
+    if (radarHere && radarHere.wet && now().getTime() / 1000 - radarHere.time < 30 * 60 && steps[0] < WET) {
+      el.className = 'nh wet';
+      el.innerHTML = icon + '<b>Lloviendo ahora</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarHere.level] + ', según el radar</span>';
+      return;
+    }
     if (steps[0] >= WET) {
       var r = run(0);
       el.className = 'nh wet';
@@ -584,7 +591,14 @@
     map.on('click', function () { if (!full) { enterFull(); } else { touchFull(); } });
     if (cfg.radarFade) { $('radar').className += ' fade'; }
     if (!cfg.demo) {
-      L.tileLayer(cfg.basemapUrl, { subdomains: 'abcd', maxZoom: 19, detectRetina: true, attribution: cfg.basemapAttribution + ' · Radar &copy; RainViewer' }).addTo(map);
+      L.tileLayer(cfg.basemapUrl, { subdomains: 'abcd', maxZoom: 16, attribution: cfg.basemapAttribution + ' · Radar &copy; RainViewer' }).addTo(map);
+      /* nombres de lugares por encima del radar */
+      if (cfg.labelsUrl) {
+        map.createPane('labels');
+        map.getPane('labels').style.zIndex = 450;
+        map.getPane('labels').style.pointerEvents = 'none';
+        L.tileLayer(cfg.labelsUrl, { pane: 'labels', subdomains: 'abcd', maxZoom: 16 }).addTo(map);
+      }
     }
     var m = L.marker([cfg.lat, cfg.lon], { icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="pin"><div class="ring"></div><div class="core"></div><div class="name"></div></div>' }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
     m.getElement().querySelector('.name').textContent = cfg.name;
@@ -788,6 +802,39 @@
       radarFails = 0; updateStatus(); scheduleRadar();
     }, function () { radarFails++; updateStatus(); scheduleRadar(); });
   }
+  /* ¿Llueve ahora encima de la ubicación según el radar? Se lee el píxel del último fotograma (zoom 7).
+     Si el servidor no permite leer la imagen, se ignora y manda el modelo. */
+  var radarHere = null;
+  function checkRadarHere() {
+    if (cfg.demo || !obsFrames.length || !radarHost) { return; }
+    var f = obsFrames[obsFrames.length - 1], z = 7, n = Math.pow(2, z);
+    var latR = cfg.lat * Math.PI / 180;
+    var fx = (cfg.lon + 180) / 360 * n, fy = (1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n;
+    var tx = Math.floor(fx), ty = Math.floor(fy), px = Math.floor((fx - tx) * 256), py = Math.floor((fy - ty) * 256);
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+        var ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+        var x0 = Math.max(0, px - 2), y0 = Math.max(0, py - 2);
+        var d = ctx.getImageData(x0, y0, Math.min(5, 256 - x0), Math.min(5, 256 - y0)).data;
+        var wet = 0, level = 0;
+        for (var i = 0; i < d.length; i += 4) {
+          if (d[i + 3] > 40) {
+            wet++;
+            var r = d[i], g = d[i + 1];
+            level = Math.max(level, r > 180 && g < 140 ? 3 : (r > 180 ? 2 : 1));
+          }
+        }
+        radarHere = { time: f.time, wet: wet >= 3, level: level };
+      } catch (e) { radarHere = null; }
+      if (W) { renderNextHour(W); }
+    };
+    img.onerror = function () { radarHere = null; };
+    img.src = radarHost + f.path + '/256/' + z + '/' + tx + '/' + ty + '/' + RADAR_COLOR + '/1_0.png';
+  }
+
   function applyObs(host, list) {
     var key = list.length ? String(list[list.length - 1].time) + ':' + list.length : '';
     if (key === lastObsKey) { return; }
@@ -795,6 +842,7 @@
     radarHost = host;
     obsFrames = list;
     rebuildFrames();
+    checkRadarHere();
   }
 
   /* ---- Previsión +24 h: rejilla de puntos de Open-Meteo pintada en el navegador ---- */

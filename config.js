@@ -47,7 +47,11 @@ window.CONFIG = {
   // Recarga automática diaria para liberar memoria ('' para desactivar)
   reloadAt: '04:00',
 
-  // Mapa base oscuro (CARTO). Si algún día falla, cambia esta URL por otro proveedor.
-  basemapUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  basemapAttribution: '&copy; OpenStreetMap &copy; CARTO'
+  // Mapa base oscuro (Esri, sin clave) y nombres de lugares por encima del radar.
+  // Alternativa: CARTO con clave gratuita (carto.com/basemaps/apikey):
+  //   basemapUrl: 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=TU_CLAVE',
+  //   labelsUrl: '',  basemapAttribution: '&copy; OpenStreetMap &copy; CARTO'
+  basemapUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  labelsUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+  basemapAttribution: 'Mapa &copy; Esri, HERE, Garmin, &copy; OpenStreetMap'
 };

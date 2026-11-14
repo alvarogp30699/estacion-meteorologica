@@ -64,4 +64,4 @@ DATOS
    Previsión: Open-Meteo (open-meteo.com, uso no comercial, datos CC BY 4.0).
    "Llovido hoy" sale del modelo de Open-Meteo para las horas pasadas, no de un pluviómetro.
    Radar: RainViewer (últimas 2 horas, fotogramas de 10 min).
-   Mapa base: CARTO / OpenStreetMap.
+   Mapa base: Esri (gris oscuro) / OpenStreetMap. CARTO ya exige clave desde sept. 2026.
