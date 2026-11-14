@@ -102,7 +102,9 @@ DATOS
    Radar: los colores se traducen a mm/h con la tabla oficial de RainViewer (Universal Blue)
    y la fórmula de Marshall-Palmer; es una estimación.
    Rayos: © EUMETSAT (Lightning Imager del satélite MTG).
-   Radar +24 h: no es radar, es la lluvia prevista por el modelo de Open-Meteo en una rejilla de
+   Radar previsto (primera hora): la última imagen real del radar desplazada según cómo se
+   ha movido la lluvia en la última hora. Es lo más fiable a corto plazo.
+   Después, +2 h a +24 h: no es radar, es la lluvia prevista por el modelo de Open-Meteo en una rejilla de
    221 puntos (cada ~25 km), pintada en la tablet. Sirve para ver por dónde vendrá, no el detalle.
    Lluvia en la próxima hora: datos cada 15 min de Open-Meteo (en España se interpolan del modelo horario).
    Riesgo de tormenta: previsión (código de tormenta y energía convectiva), no rayos reales.

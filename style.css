@@ -205,6 +205,11 @@ button { font-family: inherit; }
 #t-fc { right: 0; border-radius: 0 4px 4px 0; background: #22304A; background-image: repeating-linear-gradient(135deg, #2D3D5C 0px, #2D3D5C 5px, #22304A 5px, #22304A 10px); }
 #t-fill { left: 0; border-radius: 4px 0 0 4px; background: #5EC8FF; }
 #t-fill-fc { background: #B79CFF; }
+#t-nc { position: absolute; top: 5px; height: 8px; background: rgba(61, 220, 196, 0.35); }
+#t-thumb.nc { background: #3DDCC4; }
+#chip-r.nc .dot { background: #3DDCC4; }
+#chip-r.nc .k { color: #A8F0E4; }
+#tlh-fc .nc { color: #3DDCC4; }
 #t-now { position: absolute; top: 0; width: 2px; height: 18px; background: #FFFFFF; opacity: 0.9; }
 #t-thumb { position: absolute; top: 0; width: 18px; height: 18px; margin-left: -9px; box-sizing: border-box; border-radius: 50%; background: #5EC8FF; border: 3px solid #0B1220; }
 #t-thumb.fc { background: #B79CFF; }

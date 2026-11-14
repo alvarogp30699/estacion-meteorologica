@@ -959,6 +959,7 @@
   function layerFor(i) {
     var f = frames[i];
     if (!f) { return null; }
+    if (f.kind === 'nc') { return ncLayers[f.j] || null; }
     return f.kind === 'obs' ? getObsLayer(f) : getFcLayer(f.j);
   }
 
@@ -966,8 +967,10 @@
     var f = frames[i], nObs = obsFrames.length;
     if (f.kind === 'obs') { return nObs > 1 ? OBS * f.j / (nObs - 1) : 0; }
     var t0 = nObs ? obsFrames[nObs - 1].time : Math.floor(now().getTime() / 1000);
-    return Math.min(100, OBS + (100 - OBS) * (f.time - t0) / 86400);
+    return Math.min(100, OBS + (100 - OBS) * fcFrac((f.time - t0) / 3600));
   }
+  /* escala de la previsión: las 2 primeras horas, ampliadas (30 % del tramo); el resto hasta +24 h */
+  function fcFrac(h) { return h <= 2 ? 0.3 * h / 2 : 0.3 + 0.7 * Math.min(1, (h - 2) / 22); }
 
   function radarAgeMin() {
     if (!obsFrames.length) { return -1; }
@@ -980,7 +983,7 @@
     var f = frames[cur];
     var lc = layerFor(cur);
     if (displayed && displayed !== lc) { displayed.setOpacity(0); }
-    if (lc) { lc.setOpacity(f.kind === 'obs' ? cfg.radarOpacity : cfg.fcOpacity); if (lc.setZIndex) { lc.setZIndex(20); } }
+    if (lc) { lc.setOpacity(f.kind === 'obs' ? cfg.radarOpacity : (f.kind === 'nc' ? cfg.radarOpacity * ncFrames[f.j].fade : cfg.fcOpacity)); if (lc.setZIndex) { lc.setZIndex(20); } }
     displayed = lc;
 
     /* precarga del siguiente fotograma observado y limpieza del resto */
@@ -996,7 +999,7 @@
     $('t-fill-fc').style.left = OBS + '%';
     $('t-fill-fc').style.width = Math.max(0, pos - OBS) + '%';
     $('t-thumb').style.left = pos + '%';
-    $('t-thumb').className = f.kind === 'fc' ? 'fc' : '';
+    $('t-thumb').className = f.kind === 'obs' ? '' : f.kind;
 
     /* pastilla de modo */
     var chip = $('chip-r'), age = radarAgeMin();
@@ -1007,29 +1010,34 @@
       chip.querySelector('.w').textContent = fmtTime(f.time) + (stale ? ' · hace ' + age + ' min' : '');
     } else {
       var d = new Date(f.time * 1000);
-      chip.className = 'chip mode fc';
-      chip.querySelector('.k').textContent = 'Previsión';
+      chip.className = 'chip mode ' + f.kind;
+      chip.querySelector('.k').textContent = f.kind === 'nc' ? 'Radar previsto' : 'Modelo';
       chip.querySelector('.w').textContent = dayWord(d) + ' ' + hhmm(d);
     }
   }
 
   function layoutTimeline() {
-    OBS = fcFrames.length ? 19 : 100;
+    OBS = (fcFrames.length || ncFrames.length) ? 19 : 100;
     $('t-obs').style.width = OBS + '%';
     $('t-fc').style.left = OBS + '%';
-    $('t-fc').style.display = fcFrames.length ? 'block' : 'none';
+    $('t-fc').style.display = (fcFrames.length || ncFrames.length) ? 'block' : 'none';
+    /* tramo de la previsión del radar (primera hora) marcado aparte */
+    var ncW = ncFrames.length ? (100 - OBS) * fcFrac((ncFrames[ncFrames.length - 1].time - (obsFrames.length ? obsFrames[obsFrames.length - 1].time : 0)) / 3600) : 0;
+    $('t-nc').style.left = OBS + '%'; $('t-nc').style.width = ncW + '%'; $('t-nc').style.display = ncW ? 'block' : 'none';
     $('t-now').style.left = 'calc(' + OBS + '% - 1px)';
-    $('t-now').style.display = fcFrames.length ? 'block' : 'none';
+    $('t-now').style.display = (fcFrames.length || ncFrames.length) ? 'block' : 'none';
     $('tlh-obs').style.width = OBS + '%';
-    $('tlh-fc').style.display = fcFrames.length ? 'block' : 'none';
+    $('tlh-fc').style.display = (fcFrames.length || ncFrames.length) ? 'block' : 'none';
+    $('tlh-fc').innerHTML = ncFrames.length ? '<span class="nc">Radar previsto</span> → modelo' : 'Previsión del modelo';
     var t = '';
     function tick(left, txt, cls, shift) {
       return '<span class="' + (cls || '') + '" style="left: ' + left + '%; -webkit-transform: translateX(' + shift + '); transform: translateX(' + shift + ')">' + txt + '</span>';
     }
-    if (fcFrames.length) {
+    if (fcFrames.length || ncFrames.length) {
       t += tick(0, '−2 h', '', '0');
       t += tick(OBS, 'Ahora', 'now', '-50%');
-      for (var hh = 6; hh <= 18; hh += 6) { t += tick(OBS + (100 - OBS) * hh / 24, '+' + hh + ' h', '', '-50%'); }
+      var marks = [1, 6, 12];
+      for (var mi = 0; mi < marks.length; mi++) { t += tick(OBS + (100 - OBS) * fcFrac(marks[mi]), '+' + marks[mi] + ' h', '', '-50%'); }
       t += tick(100, '+24 h', '', '-100%');
     } else if (obsFrames.length) {
       t += tick(0, fmtTime(obsFrames[0].time), '', '0');
@@ -1043,7 +1051,10 @@
     var k;
     for (k = 0; k < obsFrames.length; k++) { frames.push({ kind: 'obs', j: k, time: obsFrames[k].time, path: obsFrames[k].path }); }
     var t0 = obsFrames.length ? obsFrames[obsFrames.length - 1].time : 0;
-    for (k = 0; k < fcFrames.length; k++) { if (fcFrames[k].time > t0) { frames.push({ kind: 'fc', j: k, time: fcFrames[k].time }); } }
+    for (k = 0; k < ncFrames.length; k++) { frames.push({ kind: 'nc', j: k, time: ncFrames[k].time }); }
+    /* el modelo empieza donde acaba la previsión del radar */
+    var tm = ncFrames.length ? ncFrames[ncFrames.length - 1].time + 1800 : t0;
+    for (k = 0; k < fcFrames.length; k++) { if (fcFrames[k].time > tm) { frames.push({ kind: 'fc', j: k, time: fcFrames[k].time }); } }
     layoutTimeline();
     showFrame(obsFrames.length ? obsFrames.length - 1 : 0);
     schedule();
@@ -1065,6 +1076,7 @@
     if (!playing || frames.length < 2) { return; }
     var f = frames[cur];
     var step = isNight() ? cfg.nightFrameMs : (f.kind === 'fc' ? cfg.fcFrameMs : cfg.frameMs);
+    if (cur === frames.length - 1 || (f.kind === 'nc' && frames[cur + 1] && frames[cur + 1].kind === 'fc')) { step = Math.max(step, 1000); }
     var delay = (cur === obsFrames.length - 1 || cur === frames.length - 1) ? cfg.pauseLastMs : step;
     animTimer = setTimeout(advance, delay);
   }
@@ -1182,7 +1194,9 @@
       radarOk = true;
       accumulate(radarHere);
       loadMosaic(fOld, tp, function (dOld) {
-        radarEta = dOld ? eta(toGrid(dOld), toGrid(dNew), tp, (fNew.time - fOld.time) / 60) : null;
+        var mins = (fNew.time - fOld.time) / 60, gN = toGrid(dNew), mv = dOld ? motion(toGrid(dOld), gN, mins) : null;
+        radarEta = mv ? eta(null, gN, tp, mins, mv) : null;
+        buildNowcast(dNew, tp, mv, fNew.time);
         if (W) { renderWeather(W); }
         checkSound();
       });
@@ -1190,7 +1204,8 @@
     });
   }
   /* desplazamiento que mejor encaja el fotograma viejo con el nuevo → velocidad → ¿llega aquí y cuándo? */
-  function eta(gOld, gNew, tp, minutes) {
+  /* movimiento de la lluvia entre dos fotogramas, en celdas por minuto (o null si no se puede medir) */
+  function motion(gOld, gNew, minutes) {
     var nOld = 0, nNew = 0, k;
     for (k = 0; k < gOld.length; k++) { if (gOld[k]) { nOld++; } if (gNew[k]) { nNew++; } }
     if (nOld < 8 || nNew < 8) { return null; }
@@ -1223,7 +1238,12 @@
     var fxs = bx + sub(score(bx - 1, by), best, score(bx + 1, by));
     var fys = by + sub(score(bx, by - 1), best, score(bx, by + 1));
     bx = fxs; by = fys;
-    var vx = bx / minutes, vy = by / minutes;           // celdas por minuto
+    return { vx: bx / minutes, vy: by / minutes };
+  }
+  function eta(gOld, gNew, tp, minutes, mv) {
+    var k;
+    if (!mv) { return null; }
+    var vx = mv.vx, vy = mv.vy;           // celdas por minuto
     if (vx * vx + vy * vy < 0.0004) { return null; }    // casi quieta
     var cx = tp.cx / CELL, cy = tp.cy / CELL;
     for (var t = 5; t <= 60; t += 5) {
@@ -1237,6 +1257,35 @@
     }
     return null;
   }
+  /* ---- Previsión con el radar real: la última imagen desplazada según el movimiento medido ---- */
+  var ncFrames = [], ncLayers = [], NC_STEPS = [10, 20, 30, 40, 50, 60];
+  function tileLatLng(x, y, z) {
+    var n = Math.pow(2, z), lon = x / n * 360 - 180, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+    return [lat, lon];
+  }
+  function buildNowcast(d, tp, mv, t0) {
+    for (var i = 0; i < ncLayers.length; i++) { map.removeLayer(ncLayers[i]); }
+    ncLayers = []; ncFrames = [];
+    if (displayed && frames[cur] && frames[cur].kind === 'nc') { displayed = null; }
+    if (!d) { rebuildFrames(); return; }
+    var src = document.createElement('canvas'); src.width = 768; src.height = 768;
+    var sctx = src.getContext('2d'), img = sctx.createImageData(768, 768);
+    img.data.set(d);
+    sctx.putImageData(img, 0, 0);
+    var nw = tileLatLng(tp.tx - 1, tp.ty - 1, tp.z), se = tileLatLng(tp.tx + 2, tp.ty + 2, tp.z);
+    var bounds = L.latLngBounds([se[0], nw[1]], [nw[0], se[1]]);
+    var vxp = mv ? mv.vx * CELL : 0, vyp = mv ? mv.vy * CELL : 0;   // píxeles por minuto
+    for (var k = 0; k < NC_STEPS.length; k++) {
+      var m = NC_STEPS[k], cv = document.createElement('canvas'); cv.width = 768; cv.height = 768;
+      cv.getContext('2d').drawImage(src, Math.round(vxp * m), Math.round(vyp * m));
+      var layer = L.imageOverlay(cv.toDataURL('image/png'), bounds, { opacity: 0, interactive: false, zIndex: 6 });
+      layer.addTo(map);
+      ncLayers.push(layer);
+      ncFrames.push({ time: t0 + m * 60, fade: 1 - k * 0.06 });
+    }
+    rebuildFrames();
+  }
+
   /* acumulado del día con el radar (solo mientras la app está abierta) */
   var ACC_KEY = 'estacion-radar-acum';
   function accumulate(h) {
@@ -1704,7 +1753,7 @@
     document.title = cfg.name + ' · Estación meteorológica';
     if (pinMarker) { pinMarker.setLatLng([cfg.lat, cfg.lon]); var nm = pinMarker.getElement() && pinMarker.getElement().querySelector('.name'); if (nm) { nm.textContent = cfg.name; } }
     userMoved = false; fixMapSize();
-    radarHere = null; radarEta = null; lastOk = 0;
+    radarHere = null; radarEta = null; lastOk = 0; buildNowcast(null);
     clearTimeout(weatherTimer);
     loadWeather(); loadForecastGrid(); loadSea(); loadAir();
     analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
