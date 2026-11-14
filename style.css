@@ -438,3 +438,89 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
 #demobar span { color: #8494AF; padding: 0 10px; }
 #demobar button { border: 0; background: transparent; color: #C5D1E6; font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
 #demobar button.on { background: #5EC8FF; color: #0B1220; font-weight: 600; }
+
+/* ============ Móvil y pantallas en vertical: una sola columna con desplazamiento ============ */
+@media (max-width: 900px), (max-height: 560px) {
+  html, body { height: auto; }
+  body { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #app { height: auto; min-height: 100%; padding: 14px 12px 70px; }
+  #app.wide { padding-top: 10px; }
+  #cols { display: block; }
+  #left { width: auto; margin-right: 0; }
+  .place { font-size: 16px; }
+  #clock { font-size: 54px; letter-spacing: -1px; }
+  #date { font-size: 15px; }
+  #now { padding: 14px 16px; margin-top: 10px; }
+  #temp { font-size: 80px; letter-spacing: -2px; }
+  #bigicon svg { width: 64px; height: 64px; }
+  #cond { font-size: 19px; }
+  #range { font-size: 14px; }
+  .nh { height: auto; min-height: 34px; padding: 6px 12px; white-space: normal; font-size: 14px; }
+  #stats .row { margin-top: 8px; }
+  .stat { width: 48.6%; padding: 8px 12px; }
+  .stat .v { font-size: 22px; }
+  .stat .s { font-size: 12px; }
+  #app.evening #row3 { display: none; }
+  #tomorrow { padding: 8px 12px; }
+  #tomorrow .rn { white-space: normal; }
+  #status { margin-top: 10px; white-space: normal; font-size: 13px; }
+  #right { margin-top: 14px; }
+
+  .alert-banner.on, .alert-banner.wide.on { height: auto; min-height: 52px; padding: 10px 12px; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+  .alert-banner.calm { min-height: 38px; font-size: 13px; }
+  .alert-banner .m, .alert-banner .sub { white-space: normal; }
+  .alert-banner.wide .txt { display: block; }
+  .alert-banner.wide .m { font-size: 17px; }
+  .alert-banner.wide .sub { font-size: 13px; margin: 2px 0 0; }
+  .alert-banner .txt { -webkit-flex-basis: 60%; flex-basis: 60%; }
+  .alert-banner .more { margin: 6px 0 0 40px; }
+
+  #radar { -webkit-flex: none; flex: none; height: 60vh; min-height: 330px; max-height: 560px; margin-bottom: 12px; }
+  .chip { top: 10px; padding: 6px 10px; font-size: 13px; }
+  #chip-l { left: 10px; }
+  #chip-r { right: 10px; }
+  #chip-r .k { font-size: 10px; letter-spacing: 0.8px; }
+  #chip-r .w { font-size: 13px; margin-left: 6px; }
+  #chip-storm, #chip-lt { top: 50px; left: 10px; font-size: 12px; white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; }
+  #chip-storm b, #chip-storm span { font-size: 12px; }
+  #chip-storm.on ~ #chip-lt { top: 88px; }
+  #tlh-obs { overflow: visible; }
+  #tlh-fc { padding-left: 26px; }
+  #bar { left: 8px; right: 8px; bottom: 8px; padding: 8px 10px; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+  #play { width: 40px; height: 40px; margin-right: 10px; }
+  #tl { min-width: 0; }
+  #tlhead { font-size: 10px; }
+  #ticks { font-size: 11px; }
+  #legend { width: 100%; margin: 8px 0 0; }
+  #legend .lt { display: inline; margin-right: 8px; font-size: 10px; }
+  .leaflet-bottom.leaflet-right { bottom: 132px; }
+
+  #hours { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 8px 6px 4px; margin-bottom: 12px; }
+  #hours .head { min-width: 680px; font-size: 12px; }
+  #hours-wrap { min-width: 680px; }
+  .day { -webkit-flex: 0 0 33.4%; flex: 0 0 33.4%; height: 50px; }
+  .day svg { width: 26px; height: 26px; }
+  .day .tx { margin-left: 6px; }
+
+  .dp-box { width: 96%; padding: 14px; max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .dp-head > svg { width: 42px; height: 42px; }
+  .dp-c { font-size: 18px; }
+  .dp-facts, .dp-parts { -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+  .dp-facts .f { -webkit-flex: 1 1 40%; flex: 1 1 40%; margin: 0 8px 8px 0; }
+  .dp-parts .pt { -webkit-flex: 1 1 40%; flex: 1 1 40%; border-left: 0; padding: 6px 4px; }
+  .dp-hours { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dp-hours .hour { min-width: 54px; }
+  svg.hist { height: 200px; }
+  .al-row { -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+  .al-tx { margin: 6px 0 0; width: 100%; }
+
+  .nc-clock { font-size: 24vw; }
+  .nc-now { font-size: 11vw; }
+  #demobar { max-width: 96%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+@media (max-width: 420px) {
+  #clock { font-size: 46px; }
+  #temp { font-size: 70px; }
+  .stat .v { font-size: 20px; }
+  .stat .u { font-size: 13px; }
+}

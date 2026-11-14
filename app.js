@@ -858,6 +858,24 @@
     m.getElement().querySelector('.name').textContent = cfg.name;
   }
 
+  /* ---- Pantalla pequeña o en vertical: diseño de una columna (lo decide el CSS; aquí se ajusta el mapa) ---- */
+  var MQ = window.matchMedia ? window.matchMedia('(max-width: 900px), (max-height: 560px)') : null;
+  function isCompact() { return !!(MQ && MQ.matches); }
+  /* en móvil, el mapa no se arrastra con el dedo (para poder desplazar la página); al tocarlo se amplía */
+  function applyCompactMap() {
+    if (!map) { return; }
+    var lock = isCompact() && !full;
+    if (lock) { map.dragging.disable(); if (map.touchZoom) { map.touchZoom.disable(); } }
+    else { map.dragging.enable(); if (map.touchZoom) { map.touchZoom.enable(); } }
+  }
+  function onLayoutChange() {
+    applyCompactMap();
+    if (map) { map.invalidateSize(); }
+    fixMapSize();
+    drawCurveLine();
+    applyNight();
+  }
+
   /* ---- Radar ampliado: tocar el mapa lo pone a pantalla completa; vuelve solo tras unos segundos sin tocarlo ---- */
   var full = false, fullTimer = null, zoomCtl = null;
   function enterFull() {
@@ -865,6 +883,7 @@
     $('radar').className += ' full';
     updateFullInfo();
     zoomCtl = L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar', zoomOutTitle: 'Alejar' }).addTo(map);
+    applyCompactMap();
     map.invalidateSize();
     touchFull();
   }
@@ -874,6 +893,7 @@
     clearTimeout(fullTimer);
     $('radar').className = $('radar').className.replace(/\s*full/g, '');
     if (zoomCtl) { map.removeControl(zoomCtl); zoomCtl = null; }
+    applyCompactMap();
     userMoved = false;
     fixMapSize();
   }
@@ -1410,7 +1430,7 @@
   /* ======================= Modo noche y recarga diaria ======================= */
   var awakeUntil = 0, startedAt = Date.now(), wasNight = null;
   function applyNight() {
-    var night = isNight() && Date.now() > awakeUntil;
+    var night = isNight() && Date.now() > awakeUntil && !isCompact();
     var clockMode = cfg.nightMode === 'reloj';
     var dim = $('dim');
     dim.style.opacity = night && !clockMode ? cfg.nightDim : 0;
@@ -1734,7 +1754,11 @@
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) { keepAwake(); clearTimeout(weatherTimer); clearTimeout(radarTimer); loadWeather(); loadRadar(); }
     });
-    window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } drawCurveLine(); });
+    var rsT = null;
+    window.addEventListener('resize', function () { clearTimeout(rsT); rsT = setTimeout(onLayoutChange, 200); });
+    window.addEventListener('orientationchange', function () { setTimeout(onLayoutChange, 400); });
+    if (MQ && MQ.addListener) { MQ.addListener(onLayoutChange); }
+    applyCompactMap();
   }
 
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', start); } else { start(); }
