@@ -2630,6 +2630,7 @@
       (GPSLOC ? '<button type="button" class="loc-star' + (findFav(getFavs(), GPSLOC) ? ' on' : '') + '" data-gpsfav="1" aria-label="Guardar en favoritos">' + (findFav(getFavs(), GPSLOC) ? '★' : '☆') + '</button>' : '') + '</div>' +
       '<label class="gps-auto"><input type="checkbox" id="gps-auto"' + (on ? ' checked' : '') + '> Abrir siempre con mi ubicación en este dispositivo</label>';
     $('gps-row').onclick = function (ev) {
+      if (ev.stopPropagation) { ev.stopPropagation(); }
       if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-gpsfav')) { if (GPSLOC) { toggleFav({ name: GPSLOC.name, lat: GPSLOC.lat, lon: GPSLOC.lon, sub: GPSLOC.sub }); renderGpsRow(); renderFavList(); } return; }
       renderGpsRow('Buscando…');
       locateMe(true, function (ok, why) { if (ok) { closeDay(); } else { renderGpsRow(why); } });
@@ -2663,6 +2664,7 @@
     return 2 * R * Math.asin(Math.sqrt(x));
   }
   function setLocation(l) {
+    if (!l || isNaN(+l.lat) || isNaN(+l.lon) || (+l.lat === 0 && +l.lon === 0)) { return; }
     /* a menos de 15 km de casa cuenta como casa (avisos de AEMET y estación de Reus siguen valiendo) */
     isHome = kmBetween(l, HOME) < 15;
     cfg.name = isHome && !l.gps ? HOME.name : l.name; cfg.lat = +l.lat; cfg.lon = +l.lon;
@@ -2743,6 +2745,8 @@
     var row = t;
     while (row && row.id !== 'daypanel' && !(row.className && String(row.className).indexOf('loc-row') >= 0)) { row = row.parentNode; }
     if (row && row.id !== 'daypanel') {
+      /* solo filas con coordenadas válidas (nunca 0,0 por un toque en «Mi ubicación») */
+      if (!row.getAttribute('data-lat') || isNaN(+row.getAttribute('data-lat'))) { return true; }
       setLocation({ name: row.getAttribute('data-name'), lat: +row.getAttribute('data-lat'), lon: +row.getAttribute('data-lon') });
       closeDay();
       return true;
