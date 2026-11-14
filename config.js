@@ -52,6 +52,7 @@ window.CONFIG = {
   radarStaleMin: 20,     // aviso si el último fotograma del radar tiene más de estos minutos
   radarFade: true,       // fundido entre fotogramas (pon false si la tablet va a tirones)
   fullRadarSec: 30,      // al tocar el mapa se amplía; vuelve solo tras estos segundos sin tocarlo
+  radarReturnSec: 30,    // si eliges otro momento del radar, vuelve a la imagen de ahora tras estos segundos
 
   // Desde esta hora (y hasta nightTo) la tarjeta «Mañana» sustituye a Mar y Sol
   tomorrowFrom: '20:00',

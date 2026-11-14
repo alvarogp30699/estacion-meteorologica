@@ -70,6 +70,7 @@
     tomorrowFrom: C.tomorrowFrom || '20:00',
     radarFade: C.radarFade !== false,
     fullRadarSec: C.fullRadarSec || 30,
+    radarReturnSec: C.radarReturnSec || 30,
     demo: Q.demo === '1' || C.demo === true || /^(demo|amarillo|naranja|rojo|noche|tarde)$/.test(HASH),
     demoAlert: Q.alert || (/^(amarillo|naranja|rojo)$/.test(HASH) ? HASH : ''),
     forceNight: Q.night === '1' || HASH === 'noche'
@@ -806,11 +807,16 @@
       '<div class="dp-c">' + list.length + (list.length === 1 ? ' aviso activo o previsto' : ' avisos activos o previstos') + '</div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div><div class="al-list">';
     for (var i = 0; i < list.length; i++) {
-      var a = list[i];
-      html += '<div class="al-row ' + a.level + '"><span class="al-pill">' + LEVEL_NAME[a.level] + '</span><div class="al-tx"><div class="al-m">' + esc(a.event) + ' · ' + whenTxt(a) + '</div>' +
-        (a.detail ? '<div class="al-d">' + esc(a.detail) + '</div>' : '') + '</div></div>';
+      var a = list[i], on = new Date(a.onset), ex = roundEnd(new Date(a.expires));
+      var more = '<div class="al-more"><div class="al-k">Horario</div><div>Desde ' + when1(on) + (sameDay(on, now()) ? ' de hoy' : '') + ' hasta ' + when1(ex) + (sameDay(ex, now()) ? ' de hoy' : '') + '</div>';
+      if (a.description) { more += '<div class="al-k">Qué dice AEMET</div><div>' + esc(a.description) + '</div>'; }
+      if (a.instruction) { more += '<div class="al-k">Recomendaciones</div><div>' + esc(a.instruction) + '</div>'; }
+      if (!a.description && !a.instruction) { more += '<div class="al-k">Detalle</div><div>' + (a.detail ? esc(a.detail) : 'AEMET no da más detalle para este aviso.') + '</div>'; }
+      more += '</div>';
+      html += '<div class="al-row ' + a.level + '" data-i="' + i + '"><span class="al-pill">' + LEVEL_NAME[a.level] + '</span><div class="al-tx"><div class="al-m">' + esc(a.event) + ' · ' + whenTxt(a) + '<span class="al-chev">▾</span></div>' +
+        (a.detail ? '<div class="al-d">' + esc(a.detail) + '</div>' : '') + more + '</div></div>';
     }
-    html += '</div><div class="dp-foot">Fuente: AEMET (vía MeteoAlarm)' + (AL && AL.updated ? ' · comprobado a las ' + hhmm(new Date(AL.updated)) : '') + ' · toca fuera para cerrar</div></div>';
+    html += '</div><div class="dp-foot">Toca un aviso para ver todo el detalle · Fuente: AEMET (vía MeteoAlarm)' + (AL && AL.updated ? ' · comprobado a las ' + hhmm(new Date(AL.updated)) : '') + ' · toca fuera para cerrar</div></div>';
     $('daypanel').innerHTML = html;
     $('daypanel').className = 'on';
     clearTimeout(dayTimer);
@@ -1065,9 +1071,17 @@
     showFrame(nxt);
     schedule();
   }
+  /* si se elige otro momento en la línea de tiempo, a los 30 s sin tocar vuelve a la imagen de ahora */
+  var returnTimer = null;
+  function scheduleReturn() {
+    clearTimeout(returnTimer);
+    returnTimer = setTimeout(function () {
+      if (!playing && obsFrames.length && cur !== obsFrames.length - 1) { showFrame(obsFrames.length - 1); }
+    }, cfg.radarReturnSec * 1000);
+  }
   function setPlaying(v) {
     playing = v;
-    if (v) { loops = 0; }
+    if (v) { loops = 0; clearTimeout(returnTimer); }
     setPlayIcon();
     if (playing) { schedule(); } else { clearTimeout(animTimer); }
   }
@@ -1707,7 +1721,13 @@
     watchBattery();
     loadLightning();
 
-    $('play').onclick = function () { setPlaying(!playing); touchFull(); };
+    $('play').onclick = function () {
+      var wasPlaying = playing;
+      setPlaying(!playing);
+      /* al pausar, vuelve a la imagen de ahora */
+      if (wasPlaying) { clearTimeout(returnTimer); showFrame(obsFrames.length ? obsFrames.length - 1 : 0); }
+      touchFull();
+    };
     $('fullclose').onclick = exitFull;
     $('wide-alert').onclick = openAlerts;
     $('now').onclick = openHistory;
@@ -1719,7 +1739,11 @@
     };
     $('daypanel').onclick = function (e) {
       var t = e.target;
-      if (t === this || (t.className && String(t.className).indexOf('dp-x') >= 0)) { closeDay(); }
+      if (t === this || (t.className && String(t.className).indexOf('dp-x') >= 0)) { closeDay(); return; }
+      /* en el panel de avisos: abrir o cerrar el detalle del aviso pulsado */
+      var row = t;
+      while (row && row !== this && !(row.className && String(row.className).indexOf('al-row') >= 0)) { row = row.parentNode; }
+      if (row && row !== this) { row.className = row.className.indexOf(' open') >= 0 ? row.className.replace(' open', '') : row.className + ' open'; }
       else { clearTimeout(dayTimer); dayTimer = setTimeout(closeDay, 30000); }
     };
     $('track').onclick = function (e) {
@@ -1729,6 +1753,7 @@
       setPlaying(false);
       showFrame(best);
       touchFull();
+      scheduleReturn();
     };
     $('clock').ondblclick = toggleFullscreen;
     $('temp').ondblclick = toggleFullscreen;

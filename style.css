@@ -372,6 +372,15 @@ button { font-family: inherit; }
 .al-tx { margin-left: 14px; }
 .al-m { font-size: 18px; font-weight: 600; }
 .al-d { font-size: 15px; color: #C5D1E6; margin-top: 3px; }
+.al-row { cursor: pointer; }
+.al-tx { -webkit-flex: 1; flex: 1; min-width: 0; }
+.al-chev { display: inline-block; margin-left: 10px; color: #9AA9C2; -webkit-transition: -webkit-transform 0.2s; transition: transform 0.2s; }
+.al-row.open .al-chev { -webkit-transform: rotate(180deg); transform: rotate(180deg); }
+.al-more { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #22304A; font-size: 15px; line-height: 1.45; color: #DCE8FA; }
+.al-row.open .al-more { display: block; }
+.al-k { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: #9AA9C2; margin: 8px 0 2px; }
+.al-k:first-child { margin-top: 0; }
+.dp-box { max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch; box-sizing: border-box; }
 
 /* Rayos */
 .bolt { background: transparent; border: 0; }

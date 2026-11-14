@@ -89,6 +89,9 @@ def extraer(feed, ahora):
                 continue
             candidatos.append((a.get("identifier"), {
                 "level": lv, "event": tipo(info), "detail": detalle(info),
+                "description": (info.get("description") or "").strip()[:700],
+                "instruction": (info.get("instruction") or "").strip()[:500],
+                "headline": (info.get("headline") or "").strip()[:200],
                 "onset": info.get("onset") or info.get("effective"), "expires": info["expires"],
                 "zone": next((x for x in areas if any(z in norm(x) for z in zonas)), areas[0] if areas else ""),
             }))
@@ -109,8 +112,9 @@ def extraer(feed, ahora):
         if u and u["level"] == av["level"] and u["event"] == av["event"] and (av["onset"] or "") <= u["expires"]:
             if av["expires"] > u["expires"]:
                 u["expires"] = av["expires"]
-            if not u["detail"] and av["detail"]:
-                u["detail"] = av["detail"]
+            for k in ("detail", "description", "instruction", "headline"):
+                if not u.get(k) and av.get(k):
+                    u[k] = av[k]
             continue
         unidos.append(dict(av))
     unidos.sort(key=lambda x: x["onset"] or "")
