@@ -300,7 +300,6 @@ button { font-family: inherit; }
   .hour .bw { height: 40px; }
   .day { height: 44px; }
   .day svg { width: 26px; height: 26px; }
-  #hours-curve svg { height: 18px; }
   #tomorrow { padding: 6px 14px; margin-top: 8px; }
   #tomorrow > svg { width: 36px; height: 36px; }
   #tomorrow .mx { font-size: 22px; }
@@ -331,7 +330,9 @@ button { font-family: inherit; }
 .stat .v svg.arrow { width: 20px; height: 20px; margin-right: 6px; vertical-align: -2px; }
 
 /* v4: curva de temperatura */
-#hours-curve svg { display: block; width: 100%; height: 26px; }
+#hours-curve { position: absolute; top: 0; left: 0; pointer-events: none; }
+#hours-curve svg { display: block; }
+#hours-cols { position: relative; }
 
 /* v4: fundido entre fotogramas del radar */
 .fade .leaflet-tile-pane .leaflet-layer, .fade .fc-img { -webkit-transition: opacity 0.35s linear; transition: opacity 0.35s linear; }

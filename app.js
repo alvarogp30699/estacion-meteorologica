@@ -425,19 +425,31 @@
     renderHoursBand();
   }
 
-  /* Curva de temperatura sobre las columnas */
+  /* Curva de temperatura: cada grado sube o baja según la temperatura y una línea fina los une */
+  var CURVE_H = 16;
   function renderCurve(h) {
-    var n = hourCols.length;
+    var n = hourCols.length, k;
     if (n < 2) { $('hours-curve').innerHTML = ''; return; }
-    var t = [], lo = 1e9, hi = -1e9, k;
-    for (k = 0; k < n; k++) { var v = h.temperature_2m[hourCols[k].i]; t.push(v); lo = Math.min(lo, v); hi = Math.max(hi, v); }
-    var pts = [];
-    for (k = 0; k < n; k++) { pts.push(((k + 0.5) / n * 1000).toFixed(1) + ',' + (25 - (t[k] - lo) / Math.max(1, hi - lo) * 20).toFixed(1)); }
-    var y0 = pts[0].split(',')[1], y1 = pts[n - 1].split(',')[1];
-    $('hours-curve').innerHTML = '<svg viewBox="0 0 1000 30" preserveAspectRatio="none" aria-hidden="true">' +
-      '<defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB86B" stop-opacity="0.35"/><stop offset="1" stop-color="#FFB86B" stop-opacity="0"/></linearGradient></defs>' +
-      '<path d="M0,' + y0 + ' L' + pts.join(' L') + ' L1000,' + y1 + ' L1000,30 L0,30 Z" fill="url(#tg)"/>' +
-      '<polyline points="0,' + y0 + ' ' + pts.join(' ') + ' 1000,' + y1 + '" fill="none" stroke="#FFB86B" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>';
+    var lo = 1e9, hi = -1e9;
+    for (k = 0; k < n; k++) { var v = h.temperature_2m[hourCols[k].i]; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    var ds = $('hours-cols').querySelectorAll('.hour .d');
+    for (k = 0; k < ds.length && k < n; k++) {
+      var off = Math.round((hi - h.temperature_2m[hourCols[k].i]) / Math.max(1, hi - lo) * CURVE_H);
+      ds[k].style.marginTop = (1 + off) + 'px';
+      ds[k].style.marginBottom = (CURVE_H - off) + 'px';
+    }
+    drawCurveLine();
+  }
+  function drawCurveLine() {
+    var wrap = $('hours-wrap'), ds = $('hours-cols').querySelectorAll('.hour .d');
+    if (ds.length < 2) { return; }
+    var wr = wrap.getBoundingClientRect(), pts = [];
+    for (var k = 0; k < ds.length; k++) {
+      var r = ds[k].getBoundingClientRect();
+      pts.push((r.left + r.width / 2 - wr.left).toFixed(1) + ',' + (r.bottom - wr.top + 2).toFixed(1));
+    }
+    $('hours-curve').innerHTML = '<svg width="' + Math.round(wr.width) + '" height="' + Math.round(wr.height) + '" aria-hidden="true">' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="rgba(232,238,249,0.35)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
   }
 
   /* Franja del aviso más alto por encima de las horas que cubre */
@@ -718,7 +730,7 @@
     dayTimer = setTimeout(closeDay, 30000);
   }
 
-  function afterAlertLayout() { renderHoursBand(); fixMapSize(); }
+  function afterAlertLayout() { renderHoursBand(); fixMapSize(); drawCurveLine(); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ======================= Radar: observado + previsión ======================= */
@@ -1503,7 +1515,7 @@
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) { keepAwake(); clearTimeout(weatherTimer); clearTimeout(radarTimer); loadWeather(); loadRadar(); }
     });
-    window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } });
+    window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } drawCurveLine(); });
   }
 
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', start); } else { start(); }
