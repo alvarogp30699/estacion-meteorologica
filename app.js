@@ -63,6 +63,9 @@
     nightDim: def(C.nightDim, 0.55),
     nightMode: C.nightMode || 'reloj',
     autoUpdate: C.autoUpdate !== false,
+    batteryWarn: def(C.batteryWarn, 30),
+    lightningUrl: def(C.lightningUrl, 'rayos.json'),
+    lightningNearKm: C.lightningNearKm || 30,
     nightFrameMs: C.nightFrameMs || 1400,
     tomorrowFrom: C.tomorrowFrom || '20:00',
     radarFade: C.radarFade !== false,
@@ -299,7 +302,7 @@
     /* el radar manda sobre el modelo si ve lluvia encima ahora mismo */
     if (radarHere && radarHere.wet && now().getTime() / 1000 - radarHere.time < 30 * 60 && steps[0] < WET) {
       el.className = 'nh wet';
-      el.innerHTML = icon + '<b>Lloviendo ahora</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarHere.level] + ' · radar</span>';
+      el.innerHTML = icon + '<b>Lloviendo ahora</b><span class="x">· ' + ['', 'débil', 'moderada', 'fuerte'][radarHere.level] + ' (~' + (radarHere.mmh < 10 ? fmtNum(radarHere.mmh, 1) : Math.round(radarHere.mmh)) + ' mm/h) · radar</span>';
       return;
     }
     if (radarEta && Date.now() / 1000 - radarEta.time < 20 * 60 && steps[0] < WET) {
@@ -837,7 +840,7 @@
     map = L.map('map', { zoomControl: false, zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false, minZoom: 5, maxZoom: 10 })
       .setView([cfg.lat, cfg.lon], cfg.zoom);
     map.attributionControl.setPrefix(false);
-    map.attributionControl.addAttribution('Previsión <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0) · Avisos AEMET');
+    map.attributionControl.addAttribution('Previsión <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0) · Avisos AEMET · Rayos &copy; EUMETSAT');
     map.on('dragstart zoomstart', function () { if (!programmatic) { userMoved = true; } touchFull(); });
     map.on('click', function () { if (!full) { enterFull(); } else { touchFull(); } });
     if (cfg.radarFade) { $('radar').className += ' fade'; }
@@ -1085,11 +1088,25 @@
     }
     for (var dy = -1; dy <= 1; dy++) { for (var dx = -1; dx <= 1; dx++) { one(dx, dy); } }
   }
-  function pixLevel(d, o) {
-    if (d[o + 3] <= 40) { return 0; }
-    var r = d[o], g = d[o + 1];
-    return r > 180 && g < 140 ? 3 : (r > 180 ? 2 : 1);
+  /* Tabla oficial «Universal Blue» de RainViewer (color → dBZ, desde 15 dBZ) y Marshall-Palmer (Z = 200·R^1,6) */
+  var UB = [[136,221,238,15],[108,209,235,16],[81,197,232,17],[54,186,229,18],[27,174,226,19],[0,163,224,20],[0,154,213,21],[0,145,202,22],[0,136,191,23],[0,127,180,24],[0,119,170,25],[0,112,163,26],[0,105,156,27],[0,98,149,28],[0,91,142,29],[0,85,136,30],[0,81,128,31],[0,78,120,32],[0,74,112,33],[0,71,104,34],[255,238,0,35],[255,224,0,36],[255,210,0,37],[255,197,0,38],[255,183,0,39],[255,170,0,40],[255,159,0,41],[255,149,0,42],[255,139,0,43],[255,129,0,44],[255,68,0,45],[242,54,0,46],[230,40,0,47],[217,27,0,48],[205,13,0,49],[193,0,0,50],[168,0,0,51],[143,0,0,52],[118,0,0,53],[93,0,0,54],[255,170,255,55],[255,159,255,56],[255,149,255,57],[255,139,255,58],[255,129,255,59],[255,119,255,60],[255,108,255,61],[255,98,255,62],[255,88,255,63],[255,78,255,64],[255,255,255,65]];
+  var colorCache = {};
+  function pixDbz(d, o) {
+    if (d[o + 3] < 200) { return 0; }                 // por debajo de 15 dBZ los colores son semitransparentes: se ignoran
+    var key = (d[o] << 16) | (d[o + 1] << 8) | d[o + 2];
+    if (colorCache[key] !== undefined) { return colorCache[key]; }
+    var best = 0, bd = 1e9;
+    for (var i = 0; i < UB.length; i++) {
+      var dr = d[o] - UB[i][0], dg = d[o + 1] - UB[i][1], db = d[o + 2] - UB[i][2], dd = dr * dr + dg * dg + db * db;
+      if (dd < bd) { bd = dd; best = UB[i][3]; }
+    }
+    colorCache[key] = bd < 6000 ? best : 0;
+    return colorCache[key];
   }
+  function dbzToMmh(z) { return z ? Math.pow(Math.pow(10, z / 10) / 200, 1 / 1.6) : 0; }
+  function mmhLevel(r) { return r <= 0 ? 0 : (r < 2 ? 1 : (r < 10 ? 2 : 3)); }
+  function pixLevel(d, o) { return mmhLevel(dbzToMmh(pixDbz(d, o))); }
+
   /* rejilla de celdas: nivel máximo si al menos un tercio de la celda tiene eco */
   function toGrid(d) {
     var g = new Uint8Array(GN * GN);
@@ -1113,9 +1130,9 @@
     loadMosaic(fNew, tp, function (dNew) {
       if (!dNew) { radarOk = false; return; }
       /* lluvia encima ahora (5×5 px alrededor) */
-      var wet = 0, lv = 0;
-      for (var y = tp.cy - 2; y <= tp.cy + 2; y++) { for (var x = tp.cx - 2; x <= tp.cx + 2; x++) { var l = pixLevel(dNew, (y * 768 + x) * 4); if (l) { wet++; lv = Math.max(lv, l); } } }
-      radarHere = { time: fNew.time, wet: wet >= 3, level: lv };
+      var wet = 0, lv = 0, sum = 0;
+      for (var y = tp.cy - 2; y <= tp.cy + 2; y++) { for (var x = tp.cx - 2; x <= tp.cx + 2; x++) { var r = dbzToMmh(pixDbz(dNew, (y * 768 + x) * 4)); if (r > 0) { wet++; sum += r; lv = Math.max(lv, mmhLevel(r)); } } }
+      radarHere = { time: fNew.time, wet: wet >= 3, level: lv, mmh: wet ? sum / wet : 0 };
       radarOk = true;
       accumulate(radarHere);
       loadMosaic(fOld, tp, function (dOld) {
@@ -1182,7 +1199,7 @@
     if (!a || a.day !== key) { a = { day: key, mm: 0, last: 0, since: d.getTime() }; }
     if (a.last && h.time > a.last) {
       var mins = Math.min(15, (h.time - a.last) / 60);
-      a.mm += [0, 1, 4, 15][h.wet ? h.level : 0] * mins / 60;
+      a.mm += (h.wet ? Math.min(h.mmh || 0, 150) : 0) * mins / 60;
     }
     if (!a.last || h.time > a.last) { a.last = h.time; }
     try { localStorage.setItem(ACC_KEY, JSON.stringify(a)); } catch (e2) { /* sin almacenamiento */ }
@@ -1310,6 +1327,8 @@
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
       else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
     }
+    var bt = batteryTxt();
+    if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent; el.className = 'warn'; }
     if (frames.length) { showFrame(cur); }
   }
 
@@ -1538,7 +1557,7 @@
       awakeUntil = 0;
       renderWeather(demoWeather());
       AL = demoAlerts(); renderAlerts();
-      lastObsKey = ''; applyObs('', demoObs()); applyGrid(demoGrid());
+      lastObsKey = ''; applyObs('', demoObs()); applyGrid(demoGrid()); loadLightning();
       applyNight();
       mark();
       if (e.stopPropagation) { e.stopPropagation(); }
@@ -1560,6 +1579,72 @@
     try {
       if (navigator.wakeLock && navigator.wakeLock.request) { navigator.wakeLock.request('screen').then(function () {}, function () {}); }
     } catch (e) { /* no disponible en navegadores antiguos */ }
+  }
+
+  /* ======================= Rayos (satélite MTG de EUMETSAT, vía la tarea de GitHub) ======================= */
+  var LT = null, ltLayer = null, lastNearStrike = 0;
+  function loadLightning() {
+    if (!map) { return; }
+    if (cfg.demo) { LT = demoLightning(); renderLightning(); return; }
+    if (!cfg.lightningUrl) { return; }
+    getJSON(cfg.lightningUrl + '?t=' + Date.now(), function (d) { LT = d; renderLightning(); }, function () { /* sin datos de rayos */ });
+  }
+  function distKm(la1, lo1, la2, lo2) {
+    var r = Math.PI / 180, dla = (la2 - la1) * r, dlo = (lo2 - lo1) * r;
+    var a = Math.sin(dla / 2) * Math.sin(dla / 2) + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 12742 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function renderLightning() {
+    if (ltLayer) { map.removeLayer(ltLayer); ltLayer = null; }
+    var chip = $('chip-lt');
+    var list = (LT && LT.strikes) || [], n = now().getTime(), shown = 0, near = null;
+    if (!map.getPane('rayos')) { map.createPane('rayos'); map.getPane('rayos').style.zIndex = 460; map.getPane('rayos').style.pointerEvents = 'none'; }
+    ltLayer = L.layerGroup();
+    for (var i = 0; i < list.length; i++) {
+      var s0 = list[i], age = (n - new Date(s0.t).getTime()) / 60000;
+      if (age > 60 || age < -5) { continue; }
+      shown++;
+      var col = age < 10 ? '#FFFFFF' : (age < 30 ? '#FFE14D' : '#FF9A3D');
+      L.marker([s0.lat, s0.lon], { pane: 'rayos', interactive: false, keyboard: false, icon: L.divIcon({ className: 'bolt', iconSize: [16, 16], iconAnchor: [8, 8],
+        html: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z" fill="' + col + '" stroke="#0B1220" stroke-width="1.5" stroke-linejoin="round"/></svg>' }) }).addTo(ltLayer);
+      var dk = distKm(cfg.lat, cfg.lon, s0.lat, s0.lon);
+      if (!near || dk < near.km) { near = { km: dk, age: age }; }
+    }
+    ltLayer.addTo(map);
+    if (!shown) { chip.className = 'chip lt'; return; }
+    var txt = shown + (shown === 1 ? ' rayo' : ' rayos') + ' en 1 h · el más cercano a ' + Math.round(near.km) + ' km';
+    chip.innerHTML = lineIcon(I_BOLT, '#FFE14D', 'rgba(255,225,77,0.35)') + '<span>' + txt + '</span>';
+    chip.className = 'chip lt on' + (near.km <= cfg.lightningNearKm ? ' near' : '');
+    /* sonido si cae un rayo cerca (como mucho uno cada 15 min) */
+    if (near.km <= cfg.lightningNearKm && near.age < 15 && Date.now() - lastNearStrike > 15 * 60000) { lastNearStrike = Date.now(); chime('alert'); }
+  }
+  function demoLightning() {
+    var out = [], t = now().getTime();
+    for (var i = 0; i < 40; i++) {
+      out.push({ t: new Date(t - (i * 90000)).toISOString(), lat: cfg.lat - 0.35 + Math.sin(i) * 0.15 + i * 0.004, lon: cfg.lon - 0.45 + Math.cos(i * 1.7) * 0.18 + i * 0.006 });
+    }
+    return { updated: new Date().toISOString(), strikes: (cfg.demoAlert === 'naranja' || cfg.demoAlert === 'rojo') ? out : [] };
+  }
+
+  /* ======================= Batería de la tablet ======================= */
+  /* Avisa si la tablet deja de cargar (cargador suelto o enchufe apagado) o si la batería baja */
+  var BAT = null;
+  function watchBattery() {
+    try {
+      if (!navigator.getBattery) { return; }
+      navigator.getBattery().then(function (b) {
+        function upd() { BAT = { level: Math.round(b.level * 100), charging: b.charging }; updateStatus(); }
+        upd();
+        b.addEventListener('levelchange', upd);
+        b.addEventListener('chargingchange', upd);
+      }, function () {});
+    } catch (e) { /* no disponible */ }
+  }
+  function batteryTxt() {
+    if (!BAT || cfg.demo) { return ''; }
+    if (!BAT.charging) { return ' · ⚠ Tablet sin cargar (' + BAT.level + ' %)'; }
+    if (BAT.level <= cfg.batteryWarn) { return ' · Batería ' + BAT.level + ' %'; }
+    return '';
   }
 
   /* ======================= Actualización automática y uso sin conexión ======================= */
@@ -1596,6 +1681,8 @@
     loadObs();
     loadAir();
     registerSW();
+    watchBattery();
+    loadLightning();
 
     $('play').onclick = function () { setPlaying(!playing); touchFull(); };
     $('fullclose').onclick = exitFull;
@@ -1635,6 +1722,7 @@
     setInterval(loadObs, 10 * 60000);
     setInterval(loadAir, 60 * 60000);
     setInterval(checkVersion, 10 * 60000);
+    setInterval(loadLightning, 5 * 60000);
     minuteTick();
     if (cfg.demo) { demoBar(); }
     document.addEventListener('touchstart', wakeFromNight, false);

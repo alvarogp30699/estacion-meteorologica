@@ -214,11 +214,12 @@ button { font-family: inherit; }
 #legend { width: 170px; -webkit-flex-shrink: 0; flex-shrink: 0; margin-left: 16px; }
 #legend .grad {
   height: 8px; border-radius: 4px;
-  background: -webkit-linear-gradient(left, #88ddee, #00a3e0, #004768, #ffee00, #ff8100, #c10000, #ffaaff);
-  background: linear-gradient(90deg, #88ddee, #00a3e0, #004768, #ffee00, #ff8100, #c10000, #ffaaff);
+  background: -webkit-linear-gradient(left, #88ddee 0%, #00a3e0 10%, #004768 38%, #ffee00 40%, #ff8100 58%, #ff4400 60%, #c10000 70%, #5d0000 78%, #ffaaff 80%, #ff4eff 98%, #ffffff 100%);
+  background: linear-gradient(90deg, #88ddee 0%, #00a3e0 10%, #004768 38%, #ffee00 40%, #ff8100 58%, #ff4400 60%, #c10000 70%, #5d0000 78%, #ffaaff 80%, #ff4eff 98%, #ffffff 100%);
 }
 #legend .lab { position: relative; height: 15px; margin-top: 5px; font-size: 12px; color: #C5D1E6; }
-#legend .lab span { position: absolute; top: 0; white-space: nowrap; }
+#legend .lab span { position: absolute; top: 0; white-space: nowrap; -webkit-transform: translateX(-50%); transform: translateX(-50%); }
+#legend .lt { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #9AA9C2; margin-bottom: 6px; white-space: nowrap; }
 
 /* Marcador de ubicación */
 .pin { position: relative; width: 0; height: 0; }
@@ -371,6 +372,14 @@ button { font-family: inherit; }
 .al-tx { margin-left: 14px; }
 .al-m { font-size: 18px; font-weight: 600; }
 .al-d { font-size: 15px; color: #C5D1E6; margin-top: 3px; }
+
+/* Rayos */
+.bolt { background: transparent; border: 0; }
+#chip-lt { display: none; left: 16px; top: 64px; background: rgba(11, 18, 32, 0.86); border: 1px solid rgba(255, 225, 77, 0.35); font-size: 14px; }
+#chip-lt.on { display: -webkit-flex; display: flex; }
+#chip-lt.near { border-color: #FFE14D; background: rgba(60, 50, 0, 0.9); }
+#chip-lt svg { width: 18px; height: 18px; margin-right: 8px; }
+#chip-storm.on ~ #chip-lt { top: 112px; }
 
 /* Gráfico de 24 h */
 #now { cursor: pointer; }

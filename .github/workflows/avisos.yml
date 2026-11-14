@@ -15,7 +15,7 @@ concurrency:
 jobs:
   avisos:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Avisos (MeteoAlarm, sin clave)
@@ -29,9 +29,21 @@ jobs:
           ESTACION: "0016A"
           ESTACION_NOMBRE: "Reus aeropuerto"
         run: python3 tools/observacion.py
+      - name: Rayos del satélite MTG (necesita EUMETSAT_KEY y EUMETSAT_SECRET)
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          EUMETSAT_KEY: ${{ secrets.EUMETSAT_KEY }}
+          EUMETSAT_SECRET: ${{ secrets.EUMETSAT_SECRET }}
+          LAT: "41.0765"
+          LON: "1.1414"
+        run: |
+          if [ -z "$EUMETSAT_KEY" ]; then echo "Sin claves de EUMETSAT: se omiten los rayos"; exit 0; fi
+          pip install --quiet eumdac netCDF4
+          python3 tools/rayos.py
       - name: Guardar si ha cambiado
         run: |
-          git add -A avisos.json observacion.json 2>/dev/null || true
+          git add -A avisos.json observacion.json rayos.json 2>/dev/null || true
           if git diff --cached --quiet; then echo "Nada que guardar"; exit 0; fi
           git config user.name "avisos-bot"
           git config user.email "avisos-bot@users.noreply.github.com"

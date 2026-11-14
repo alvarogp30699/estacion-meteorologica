@@ -29,6 +29,17 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    Con eso, la misma tarea guarda observacion.json y la pantalla usa temperatura, humedad,
    viento, presión y lluvia caída MEDIDAS en lugar de las del modelo.
 
+   RAYOS DEL SATÉLITE MTG (EUMETSAT), opcional y gratis:
+   g) Regístrate en https://user.eumetsat.int (EUMETSAT User Portal).
+   h) Con la sesión iniciada, abre https://api.eumetsat.int/api-key/ y copia el
+      «Consumer key» y el «Consumer secret».
+   i) En GitHub: Settings -> Secrets and variables -> Actions -> New repository secret:
+      EUMETSAT_KEY = Consumer key      EUMETSAT_SECRET = Consumer secret
+   La tarea descarga los destellos del Lightning Imager de la última hora en ~220 km
+   alrededor y los guarda en rayos.json. El mapa los pinta (blanco < 10 min, amarillo
+   < 30 min, naranja < 60 min) y avisa (con sonido) si caen a 30 km o menos.
+   Llegan con unos 15-40 min de retraso: sirven para ver dónde hay tormenta, no al segundo.
+
    Otras opciones (Netlify, Cloudflare Pages) sirven para la web, pero no ejecutan la tarea
    de avisos: en ese caso pon alertsUrl: '' en config.js.
 
@@ -72,6 +83,8 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    - Toca la tarjeta de la temperatura para ver las últimas 24 h (medidas en Reus si hay
      datos de la estación; si no, del modelo).
    - En el detalle de «Hoy» sale la calidad del aire y el polen (orientativo).
+   - Si la tablet deja de cargar (cargador suelto, enchufe apagado) o la batería baja del
+     30 %, sale un aviso en la línea de abajo.
    - Cada día a las 04:00 se recarga sola para liberar memoria.
    - El radar está quieto en la hora actual; con el play da 3 vueltas y vuelve solo.
    - Toca el mapa para ampliar el radar (con zoom); vuelve solo a los 30 s.
@@ -83,6 +96,9 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    - Desde las 20:00 la tarjeta «Mañana» sustituye a Mar y Sol; de noche sale la fase lunar.
 
 DATOS
+   Radar: los colores se traducen a mm/h con la tabla oficial de RainViewer (Universal Blue)
+   y la fórmula de Marshall-Palmer; es una estimación.
+   Rayos: © EUMETSAT (Lightning Imager del satélite MTG).
    Radar +24 h: no es radar, es la lluvia prevista por el modelo de Open-Meteo en una rejilla de
    221 puntos (cada ~25 km), pintada en la tablet. Sirve para ver por dónde vendrá, no el detalle.
    Lluvia en la próxima hora: datos cada 15 min de Open-Meteo (en España se interpolan del modelo horario).

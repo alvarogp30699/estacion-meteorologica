@@ -6,11 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0B1220">
-<meta name="app-version" content="20261114180003">
+<meta name="app-version" content="20261114180718">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261114180003">
+<link rel="stylesheet" href="style.css?v=20261114180718">
 </head>
 <body>
 <div id="app">
@@ -65,6 +65,7 @@
         <div id="map"></div>
         <div id="chip-l" class="chip"><span class="dot"></span>Radar de lluvia</div>
         <div id="chip-storm" class="chip storm"></div>
+        <div id="chip-lt" class="chip lt"></div>
         <div id="fullinfo" class="chip"></div>
         <button id="fullclose" type="button" class="chip">Toca aquí para volver · vuelve sola en 30 s</button>
         <div id="chip-r" class="chip mode"><span class="dot"></span><span class="k">Observado</span><span class="w">--:--</span></div>
@@ -80,8 +81,9 @@
             <div id="ticks"></div>
           </div>
           <div id="legend">
+            <div class="lt">Lluvia · mm/h</div>
             <div class="grad"></div>
-            <div class="lab"><span style="left: 0">0,5</span><span style="left: 28%">2</span><span style="left: 50%">10</span><span style="right: 0">50+ mm/h</span></div>
+            <div class="lab"><span style="left: 16%">1</span><span style="left: 38%">5</span><span style="left: 58%">20</span><span style="left: 80%">100</span></div>
           </div>
         </div>
       </div>
@@ -101,8 +103,8 @@
 
 <div id="dim"></div>
 
-<script src="config.js?v=20261114180003"></script>
+<script src="config.js?v=20261114180718"></script>
 <script src="leaflet/leaflet.js"></script>
-<script src="app.js?v=20261114180003"></script>
+<script src="app.js?v=20261114180718"></script>
 </body>
 </html>

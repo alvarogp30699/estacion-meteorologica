@@ -28,6 +28,11 @@ window.CONFIG = {
   obsUrl: 'observacion.json',
   obsMaxAgeMin: 120,     // si el último dato tiene más de 2 h, se ignora
 
+  // Rayos de la última hora (satélite MTG de EUMETSAT). Los genera la misma tarea si el
+  // repositorio tiene los secretos EUMETSAT_KEY y EUMETSAT_SECRET.
+  lightningUrl: 'rayos.json',
+  lightningNearKm: 30,   // a esta distancia o menos: aviso destacado y sonido
+
   // Sonido al empezar a llover o con un aviso nuevo (necesita un toque en la pantalla tras cargar)
   sound: true,
   soundVolume: 0.25,
@@ -57,6 +62,9 @@ window.CONFIG = {
   nightMode: 'reloj',    // 'reloj' = solo hora, temperatura, lluvia y avisos en negro · 'atenuar' = pantalla normal oscurecida
   nightDim: 0.55,        // (modo 'atenuar') 0 = nada, 0.8 = muy oscuro
   nightFrameMs: 1400,
+
+  // Aviso abajo si la tablet deja de cargar o si la batería baja de este %
+  batteryWarn: 30,
 
   // Se recarga sola cuando se publica una versión nueva en GitHub
   autoUpdate: true,
