@@ -643,3 +643,22 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
 /* Mapa ampliado: botones de Nubes y Viento más grandes para acertar con el dedo */
 #radar.full #sat-btn, #radar.full #wind-btn { padding: 9px 18px; font-size: 16px; margin-left: 10px; min-height: 40px; }
 #radar.full #chip-l { padding-top: 6px; padding-bottom: 6px; }
+
+/* ===== Móvil: orden pensado para el teléfono (resumen arriba, estado abajo, mapa más bajo) ===== */
+@media (max-width: 900px), (max-height: 560px) {
+  #cols { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+  #left, #right { display: contents; }
+  #col-alert { -webkit-order: 1; order: 1; margin-top: 12px; margin-bottom: 0; }
+  #summary { -webkit-order: 2; order: 2; margin: 10px 4px 0; }
+  #now { -webkit-order: 3; order: 3; }
+  #stats { -webkit-order: 4; order: 4; }
+  #tomorrow { -webkit-order: 5; order: 5; margin-top: 8px; }
+  #radar { -webkit-order: 6; order: 6; margin-top: 14px; height: 50vh; min-height: 300px; max-height: 460px; }
+  #hours { -webkit-order: 7; order: 7; }
+  #days { -webkit-order: 8; order: 8; }
+  #statusrow { -webkit-order: 9; order: 9; margin-top: 12px; }
+  #status { white-space: normal; }
+  #app { padding-bottom: 24px; }
+  #hours .head { min-width: 0; -webkit-flex-wrap: wrap; flex-wrap: wrap; position: -webkit-sticky; position: sticky; left: 0; }
+  #hours .head .key { white-space: normal; font-size: 11px; margin-top: 2px; }
+}
