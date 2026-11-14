@@ -586,8 +586,9 @@
       if (!satOn) { return; }
       if (satLayer) { satLayer.setUrl(u.url); satLayer.setBounds(u.bounds); }
       else {
-        if (!map.getPane('sat')) { map.createPane('sat'); map.getPane('sat').style.zIndex = 250; map.getPane('sat').style.pointerEvents = 'none'; }
-        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'sat', opacity: 0.7, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
+        /* en la capa de mapas: por encima del mapa base (z 1) y por debajo del radar (z 10–20) */
+        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'tilePane', opacity: 0.8, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
+        satLayer.getElement().style.zIndex = 5;
       }
       $('sat-btn').className = 'on';
     };
