@@ -88,6 +88,9 @@ ESTACIÓN METEOROLÓGICA (diseño A · Noche)
    - Cada día a las 04:00 se recarga sola para liberar memoria.
    - El radar está quieto en la hora actual; con el play da 3 vueltas y vuelve solo.
    - Toca el mapa para ampliar el radar (con zoom); vuelve solo a los 30 s.
+   - Toca el nombre del lugar (arriba a la izquierda) para buscar otra ciudad o abrir tus
+     favoritos (☆). Fuera de casa no salen los avisos, la estación ni los rayos (son de Salou),
+     y a los 5 min sin tocar vuelve sola a Salou. «⌂ Volver a casa» vuelve al momento.
    - Toca un día de la previsión para ver su detalle (la fila tiene 8 días, deslízala).
    - Sonido al empezar a llover o con un aviso nuevo. El navegador solo deja sonar después
      de tocar la pantalla una vez tras cargar (también tras la recarga de las 04:00).

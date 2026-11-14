@@ -71,11 +71,15 @@
     radarFade: C.radarFade !== false,
     fullRadarSec: C.fullRadarSec || 30,
     radarReturnSec: C.radarReturnSec || 30,
+    locReturnMin: def(C.locReturnMin, 5),
+    favorites: C.favorites || [],
     demo: Q.demo === '1' || C.demo === true || /^(demo|amarillo|naranja|rojo|noche|tarde)$/.test(HASH),
     demoAlert: Q.alert || (/^(amarillo|naranja|rojo)$/.test(HASH) ? HASH : ''),
     forceNight: Q.night === '1' || HASH === 'noche'
   };
 
+  var TZ = 'auto';
+  try { TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'auto'; } catch (e) { TZ = 'auto'; }
   var RADAR_COLOR = 2;      // Universal Blue (el esquema gratuito de RainViewer)
   var CACHE_KEY = 'estacion-meteo-cache-v3';
   var LEVEL_RANK = { amarillo: 1, naranja: 2, rojo: 3 };
@@ -198,7 +202,7 @@
       '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset,uv_index_max,wind_gusts_10m_max,wind_speed_10m_max,wind_direction_10m_dominant' +
       '&minutely_15=precipitation&past_minutely_15=1&forecast_minutely_15=8' +
       '&past_hours=24&forecast_hours=120' +
-      '&wind_speed_unit=kmh&timezone=auto&forecast_days=' + cfg.days;
+      '&wind_speed_unit=kmh&timezone=' + encodeURIComponent(TZ) + '&forecast_days=' + cfg.days;
   }
 
   function hourIndex(h, cur) {
@@ -590,8 +594,10 @@
   /* ======================= Mar (Open-Meteo Marine) ======================= */
   function loadSea() {
     if (cfg.demo) { renderSea({ current: { sea_surface_temperature: 19.2, wave_height: 0.6, wave_direction: 95 } }); return; }
-    var url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + cfg.seaLat + '&longitude=' + cfg.seaLon +
-      '&current=wave_height,wave_direction,sea_surface_temperature&timezone=auto';
+    var sla = isHome ? cfg.seaLat : cfg.lat, slo = isHome ? cfg.seaLon : cfg.lon;
+    $('sea').innerHTML = '--'; setSub('sea-s', '&nbsp;', '');
+    var url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + sla + '&longitude=' + slo +
+      '&current=wave_height,wave_direction,sea_surface_temperature&timezone=' + encodeURIComponent(TZ);
     getJSON(url, renderSea, function () { /* se mantiene el último dato */ });
   }
   function renderSea(d) {
@@ -608,7 +614,7 @@
   function loadAir() {
     if (cfg.demo) { AIR = { aqi: 18, pollen: { name: 'Gramíneas', level: 0 } }; return; }
     var url = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + cfg.lat + '&longitude=' + cfg.lon +
-      '&current=european_aqi,pm2_5,pm10&hourly=' + Object.keys(POLLEN).join(',') + '&forecast_days=1&timezone=auto';
+      '&current=european_aqi,pm2_5,pm10&hourly=' + Object.keys(POLLEN).join(',') + '&forecast_days=1&timezone=' + encodeURIComponent(TZ);
     getJSON(url, function (d) {
       var a = { aqi: d.current ? d.current.european_aqi : null, pm25: d.current ? d.current.pm2_5 : null, pollen: null };
       if (d.hourly) {
@@ -638,7 +644,7 @@
     getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { STN = d; if (W) { renderWeather(W); } updateStatus(); }, function () { STN = null; });
   }
   function obsFresh() {
-    if (!STN || !STN.time) { return false; }
+    if (!isHome || !STN || !STN.time) { return false; }
     var t = new Date(STN.time);
     return Date.now() - t.getTime() < cfg.obsMaxAgeMin * 60000 && sameDay(t, now());
   }
@@ -683,7 +689,7 @@
 
   function activeAlerts() {
     var out = [], n = now();
-    if (!AL || !AL.alerts) { return out; }
+    if (!isHome || !AL || !AL.alerts) { return out; }
     for (var i = 0; i < AL.alerts.length; i++) {
       var a = AL.alerts[i];
       if (LEVEL_RANK[a.level] && new Date(a.expires) > n) { out.push(a); }
@@ -712,6 +718,12 @@
     col.className = 'alert-banner';
 
     if (!cfg.demo && !cfg.alertsUrl) { afterAlertLayout(wasWide); return; }
+    if (!isHome) {
+      col.className = 'alert-banner on calm gray';
+      col.innerHTML = lineIcon(I_INFO, '#8494AF') + '<span class="calm-t">Viendo ' + esc(cfg.name) + ' · los avisos de AEMET, la estación y los rayos son de ' + esc(HOME.name) + '</span>';
+      afterAlertLayout(wasWide);
+      return;
+    }
 
     var stale = AL && AL.updated && (Date.now() - new Date(AL.updated).getTime() > 3 * 3600000);
     if (!list.length) {
@@ -827,7 +839,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ======================= Radar: observado + previsión ======================= */
-  var map = null, userMoved = false, programmatic = false;
+  var map = null, userMoved = false, programmatic = false, pinMarker = null;
   var obsFrames = [], fcFrames = [], frames = [], cur = 0, playing = cfg.autoplay, animTimer = null;
   var radarHost = '', lastObsKey = '', OBS = 100, displayed = null;
   var layerCache = {}, fcLayers = [];
@@ -860,7 +872,7 @@
         L.tileLayer(cfg.labelsUrl, { pane: 'labels', subdomains: 'abcd', maxZoom: 16 }).addTo(map);
       }
     }
-    var m = L.marker([cfg.lat, cfg.lon], { icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="pin"><div class="ring"></div><div class="core"></div><div class="name"></div></div>' }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+    var m = pinMarker = L.marker([cfg.lat, cfg.lon], { icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="pin"><div class="ring"></div><div class="core"></div><div class="name"></div></div>' }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
     m.getElement().querySelector('.name').textContent = cfg.name;
   }
 
@@ -1228,6 +1240,7 @@
   /* acumulado del día con el radar (solo mientras la app está abierta) */
   var ACC_KEY = 'estacion-radar-acum';
   function accumulate(h) {
+    if (!isHome) { return; }
     var d = now(), key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(), a;
     try { a = JSON.parse(localStorage.getItem(ACC_KEY) || 'null'); } catch (e) { a = null; }
     if (!a || a.day !== key) { a = { day: key, mm: 0, last: 0, since: d.getTime() }; }
@@ -1240,7 +1253,7 @@
   }
   /* devuelve el acumulado del radar si ha cubierto casi todo el día (desde antes de las 01:00), si no null */
   function radarRainToday() {
-    if (!radarOk) { return null; }
+    if (!radarOk || !isHome) { return null; }
     var a, d = now();
     try { a = JSON.parse(localStorage.getItem(ACC_KEY) || 'null'); } catch (e) { return null; }
     if (!a || a.day !== d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate()) { return null; }
@@ -1381,7 +1394,7 @@
     getJSON(weatherUrl(), function (data) {
       try { renderWeather(data); } catch (e) { lastError = true; weatherFails++; updateStatus(); scheduleWeather(); return; }
       lastOk = Date.now(); lastError = false; weatherFails = 0;
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: lastOk, data: data })); } catch (e2) { /* sin almacenamiento */ }
+      if (isHome) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: lastOk, data: data })); } catch (e2) { /* sin almacenamiento */ } }
       updateStatus(); scheduleWeather();
     }, function () { lastError = true; weatherFails++; updateStatus(); scheduleWeather(); });
   }
@@ -1631,7 +1644,7 @@
   function renderLightning() {
     if (ltLayer) { map.removeLayer(ltLayer); ltLayer = null; }
     var chip = $('chip-lt');
-    var list = (LT && LT.strikes) || [], n = now().getTime(), shown = 0, near = null;
+    var list = (isHome && LT && LT.strikes) || [], n = now().getTime(), shown = 0, near = null;
     if (!map.getPane('rayos')) { map.createPane('rayos'); map.getPane('rayos').style.zIndex = 460; map.getPane('rayos').style.pointerEvents = 'none'; }
     ltLayer = L.layerGroup();
     for (var i = 0; i < list.length; i++) {
@@ -1658,6 +1671,110 @@
       out.push({ t: new Date(t - (i * 90000)).toISOString(), lat: cfg.lat - 0.35 + Math.sin(i) * 0.15 + i * 0.004, lon: cfg.lon - 0.45 + Math.cos(i * 1.7) * 0.18 + i * 0.006 });
     }
     return { updated: new Date().toISOString(), strikes: (cfg.demoAlert === 'naranja' || cfg.demoAlert === 'rojo') ? out : [] };
+  }
+
+  /* ======================= Ubicaciones: buscador y favoritos ======================= */
+  var HOME = { name: cfg.name, lat: cfg.lat, lon: cfg.lon, sub: 'Casa' }, isHome = true, awayTimer = null;
+  var FAV_KEY = 'estacion-favoritos';
+  function getFavs() {
+    var f = [];
+    try { f = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { f = []; }
+    /* los favoritos de config.js también aparecen */
+    for (var i = 0; i < cfg.favorites.length; i++) { if (!findFav(f, cfg.favorites[i])) { f.push(cfg.favorites[i]); } }
+    return f;
+  }
+  function findFav(list, l) {
+    for (var i = 0; i < list.length; i++) { if (Math.abs(list[i].lat - l.lat) < 0.01 && Math.abs(list[i].lon - l.lon) < 0.01) { return list[i]; } }
+    return null;
+  }
+  function saveFavs(f) { try { localStorage.setItem(FAV_KEY, JSON.stringify(f)); } catch (e) { /* sin almacenamiento */ } }
+  function toggleFav(l) {
+    var f = getFavs(), out = [], had = false;
+    for (var i = 0; i < f.length; i++) { if (Math.abs(f[i].lat - l.lat) < 0.01 && Math.abs(f[i].lon - l.lon) < 0.01) { had = true; } else { out.push(f[i]); } }
+    if (!had) { out.push({ name: l.name, lat: l.lat, lon: l.lon, sub: l.sub || '' }); }
+    saveFavs(out);
+    return !had;
+  }
+
+  function setLocation(l) {
+    isHome = Math.abs(l.lat - HOME.lat) < 0.01 && Math.abs(l.lon - HOME.lon) < 0.01;
+    cfg.name = isHome ? HOME.name : l.name; cfg.lat = +l.lat; cfg.lon = +l.lon;
+    $('place').textContent = cfg.name;
+    $('place-home').className = isHome ? '' : 'on';
+    document.title = cfg.name + ' · Estación meteorológica';
+    if (pinMarker) { pinMarker.setLatLng([cfg.lat, cfg.lon]); var nm = pinMarker.getElement() && pinMarker.getElement().querySelector('.name'); if (nm) { nm.textContent = cfg.name; } }
+    userMoved = false; fixMapSize();
+    radarHere = null; radarEta = null; lastOk = 0;
+    clearTimeout(weatherTimer);
+    loadWeather(); loadForecastGrid(); loadSea(); loadAir();
+    analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
+    clearTimeout(awayTimer);
+    if (!isHome && cfg.locReturnMin) { armAway(); }
+  }
+  /* fuera de casa: vuelve sola a la ubicación principal tras unos minutos sin tocar */
+  function armAway() {
+    clearTimeout(awayTimer);
+    if (isHome || !cfg.locReturnMin) { return; }
+    awayTimer = setTimeout(function () { if (!isHome) { closeDay(); setLocation(HOME); } }, cfg.locReturnMin * 60000);
+  }
+
+  function locRow(l, kind) {
+    var fav = !!findFav(getFavs(), l), cur = Math.abs(l.lat - cfg.lat) < 0.01 && Math.abs(l.lon - cfg.lon) < 0.01;
+    return '<div class="loc-row' + (cur ? ' cur' : '') + '" data-lat="' + l.lat + '" data-lon="' + l.lon + '" data-name="' + esc(l.name) + '" data-sub="' + esc(l.sub || '') + '">' +
+      '<span class="loc-ic">' + (kind === 'home' ? '⌂' : '•') + '</span><div class="loc-tx"><div class="loc-n">' + esc(l.name) + '</div><div class="loc-s">' + esc(l.sub || '') + (cur ? ' · viendo ahora' : '') + '</div></div>' +
+      (kind === 'home' ? '' : '<button type="button" class="loc-star' + (fav ? ' on' : '') + '" aria-label="' + (fav ? 'Quitar de favoritos' : 'Añadir a favoritos') + '">' + (fav ? '★' : '☆') + '</button>') + '</div>';
+  }
+  function renderFavList() {
+    var f = getFavs(), h = locRow(HOME, 'home');
+    for (var i = 0; i < f.length; i++) { h += locRow(f[i], 'fav'); }
+    if (!f.length) { h += '<div class="loc-empty">Busca un sitio y pulsa ☆ para guardarlo aquí.</div>'; }
+    $('loc-favs').innerHTML = h;
+  }
+  var searchT = null, searchN = 0;
+  function searchPlaces(q) {
+    var box = $('loc-res');
+    if (q.length < 2) { box.innerHTML = ''; return; }
+    var my = ++searchN;
+    box.innerHTML = '<div class="loc-empty">Buscando…</div>';
+    getJSON('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(q) + '&count=8&language=es&format=json', function (d) {
+      if (my !== searchN) { return; }
+      var r = (d && d.results) || [], h = '';
+      for (var i = 0; i < r.length; i++) {
+        var sub = [r[i].admin2 && r[i].admin2 !== r[i].name ? r[i].admin2 : '', r[i].admin1, r[i].country].filter(function (x) { return !!x; }).join(', ');
+        h += locRow({ name: r[i].name, lat: +r[i].latitude.toFixed(4), lon: +r[i].longitude.toFixed(4), sub: sub }, 'res');
+      }
+      box.innerHTML = h || '<div class="loc-empty">No encuentro «' + esc(q) + '».</div>';
+    }, function () { if (my === searchN) { box.innerHTML = '<div class="loc-empty">Sin conexión con el buscador.</div>'; } });
+  }
+  function openLocations() {
+    $('daypanel').innerHTML = '<div class="dp-box loc"><div class="dp-head"><div class="dp-t"><div class="dp-n">Ubicaciones</div><div class="dp-c">¿Qué sitio quieres ver?</div></div>' +
+      '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
+      '<input id="loc-q" type="search" autocomplete="off" placeholder="Buscar ciudad o pueblo… (p. ej. Tarragona, Madrid)">' +
+      '<div id="loc-res"></div><div class="al-k">Favoritos</div><div id="loc-favs"></div>' +
+      '<div class="dp-foot">' + (cfg.locReturnMin ? 'Si ves otro sitio, vuelve sola a ' + esc(HOME.name) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : '') + 'Los favoritos se guardan en este dispositivo</div></div>';
+    renderFavList();
+    $('daypanel').className = 'on';
+    clearTimeout(dayTimer);
+    var q = $('loc-q');
+    q.oninput = function () { clearTimeout(searchT); var v = this.value.replace(/^\s+|\s+$/g, ''); searchT = setTimeout(function () { searchPlaces(v); }, 400); };
+  }
+  function onLocClick(t) {
+    /* estrella: guardar o quitar de favoritos */
+    if (t.className && String(t.className).indexOf('loc-star') >= 0) {
+      var r0 = t.parentNode, l0 = { name: r0.getAttribute('data-name'), lat: +r0.getAttribute('data-lat'), lon: +r0.getAttribute('data-lon'), sub: r0.getAttribute('data-sub') };
+      var on = toggleFav(l0);
+      t.className = 'loc-star' + (on ? ' on' : ''); t.textContent = on ? '★' : '☆';
+      renderFavList();
+      return true;
+    }
+    var row = t;
+    while (row && row.id !== 'daypanel' && !(row.className && String(row.className).indexOf('loc-row') >= 0)) { row = row.parentNode; }
+    if (row && row.id !== 'daypanel') {
+      setLocation({ name: row.getAttribute('data-name'), lat: +row.getAttribute('data-lat'), lon: +row.getAttribute('data-lon') });
+      closeDay();
+      return true;
+    }
+    return false;
   }
 
   /* ======================= Batería de la tablet ======================= */
@@ -1699,7 +1816,7 @@
   }
 
   /* Para diagnosticar desde la consola del navegador: estacionDebug() */
-  window.estacionDebug = function () { return { obs: STN, obsFresh: obsFresh(), alerts: AL, radarHere: radarHere, radarEta: radarEta, battery: BAT, version: APP_V }; };
+  window.estacionDebug = function () { return { home: isHome, place: cfg.name, obs: STN, obsFresh: obsFresh(), alerts: AL, radarHere: radarHere, radarEta: radarEta, battery: BAT, version: APP_V }; };
 
   /* ======================= Arranque ======================= */
   function start() {
@@ -1731,6 +1848,10 @@
     $('fullclose').onclick = exitFull;
     $('wide-alert').onclick = openAlerts;
     $('now').onclick = openHistory;
+    $('place-btn').onclick = openLocations;
+    $('place-home').onclick = function (e) { if (e.stopPropagation) { e.stopPropagation(); } setLocation(HOME); };
+    document.addEventListener('touchstart', armAway, false);
+    document.addEventListener('mousedown', armAway, false);
     $('col-alert').onclick = function () { if (this.className.indexOf('calm') < 0) { openAlerts(); } };
     $('days').onclick = function (e) {
       var t = e.target;
@@ -1740,11 +1861,12 @@
     $('daypanel').onclick = function (e) {
       var t = e.target;
       if (t === this || (t.className && String(t.className).indexOf('dp-x') >= 0)) { closeDay(); return; }
+      if (onLocClick(t)) { return; }
       /* en el panel de avisos: abrir o cerrar el detalle del aviso pulsado */
       var row = t;
       while (row && row !== this && !(row.className && String(row.className).indexOf('al-row') >= 0)) { row = row.parentNode; }
       if (row && row !== this) { row.className = row.className.indexOf(' open') >= 0 ? row.className.replace(' open', '') : row.className + ' open'; }
-      else { clearTimeout(dayTimer); dayTimer = setTimeout(closeDay, 30000); }
+      else if (!$('loc-q')) { clearTimeout(dayTimer); dayTimer = setTimeout(closeDay, 30000); }
     };
     $('track').onclick = function (e) {
       if (!frames.length) { return; }

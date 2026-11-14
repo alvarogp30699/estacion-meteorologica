@@ -5,6 +5,13 @@ window.CONFIG = {
   name: 'Salou',
   lat: 41.0765,
   lon: 1.1414,
+  // Al tocar el nombre del lugar se abre el buscador y los favoritos.
+  // Si se mira otro sitio, vuelve sola aquí tras estos minutos sin tocar (0 = no vuelve).
+  locReturnMin: 5,
+  // Favoritos fijos (aparecen en todos los dispositivos). Los que guardes con ☆ se quedan en cada dispositivo.
+  // Ejemplo: favorites: [{ name: 'Barcelona', lat: 41.3888, lon: 2.159, sub: 'Cataluña' }],
+  favorites: [],
+
   // Punto de mar para temperatura del agua y olas (un poco mar adentro)
   seaLat: 41.05,
   seaLon: 1.15,
