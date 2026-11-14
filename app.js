@@ -198,8 +198,8 @@
     return 'https://api.open-meteo.com/v1/forecast' +
       '?latitude=' + cfg.lat + '&longitude=' + cfg.lon +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,is_day,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl' +
-      '&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,is_day,pressure_msl,cape,wind_speed_10m,wind_gusts_10m,wind_direction_10m' +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset,uv_index_max,wind_gusts_10m_max,wind_speed_10m_max,wind_direction_10m_dominant' +
+      '&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,is_day,pressure_msl,cape,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m,visibility,uv_index' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset,uv_index_max,wind_gusts_10m_max,wind_speed_10m_max,wind_direction_10m_dominant,daylight_duration' +
       '&minutely_15=precipitation&past_minutely_15=1&forecast_minutely_15=8' +
       '&past_hours=24&forecast_hours=120' +
       '&wind_speed_unit=kmh&timezone=' + encodeURIComponent(TZ) + '&forecast_days=' + cfg.days;
@@ -809,6 +809,228 @@
     $('daypanel').className = 'on';
     clearTimeout(dayTimer);
     dayTimer = setTimeout(closeDay, 30000);
+  }
+
+  /* ======================= Paneles de las tarjetas ======================= */
+  /* Gráfico genérico: línea A (y opcional B), barras opcionales, marca de «ahora», horas abajo y flechas de dirección */
+  function buildChart(pts, o) {
+    var Wd = Math.max(340, Math.min(1000, (window.innerWidth || 1000) - 70)), Hd = o.h || 210, L = 46, R = 16, T = o.arrows ? 34 : 22, B = 30, n = pts.length, i;
+    if (n < 2) { return ''; }
+    var lo = 1e9, hi = -1e9, rmax = 0;
+    for (i = 0; i < n; i++) {
+      if (pts[i].a != null) { lo = Math.min(lo, pts[i].a); hi = Math.max(hi, pts[i].a); }
+      if (pts[i].b != null) { lo = Math.min(lo, pts[i].b); hi = Math.max(hi, pts[i].b); }
+      if (pts[i].r) { rmax = Math.max(rmax, pts[i].r); }
+    }
+    if (o.yMin != null) { lo = Math.min(lo, o.yMin); } if (o.yMax != null) { hi = Math.max(hi, o.yMax); }
+    if (o.fixed) { lo = o.yMin; hi = o.yMax; }
+    if (hi - lo < (o.minSpan || 2)) { var mid = (hi + lo) / 2; lo = mid - (o.minSpan || 2) / 2; hi = mid + (o.minSpan || 2) / 2; }
+    if (!o.fixed) { var pd = (hi - lo) * 0.08; lo -= pd; hi += pd; }
+    function X(k) { return L + (Wd - L - R) * k / (n - 1); }
+    function Y(v) { return T + (Hd - T - B) * (hi - v) / (hi - lo); }
+    var svg = '', fmt = o.fmt || function (v) { return Math.round(v); };
+    var hasLine = false;
+    for (i = 0; i < n; i++) { if (pts[i].a != null) { hasLine = true; break; } }
+    for (var g = 0; hasLine && g <= 4; g++) {
+      var gv = lo + (hi - lo) * g / 4;
+      svg += '<line x1="' + L + '" x2="' + (Wd - R) + '" y1="' + Y(gv).toFixed(1) + '" y2="' + Y(gv).toFixed(1) + '" stroke="#22304A"/>' +
+        '<text x="' + (L - 8) + '" y="' + (Y(gv) + 4).toFixed(1) + '" fill="#9AA9C2" font-size="12" text-anchor="end">' + fmt(gv) + '</text>';
+    }
+    if (o.nowIdx != null && o.nowIdx >= 0 && o.nowIdx < n) {
+      svg += '<rect x="' + X(o.nowIdx).toFixed(1) + '" y="' + T + '" width="' + (Wd - R - X(o.nowIdx)).toFixed(1) + '" height="' + (Hd - T - B) + '" fill="rgba(183,156,255,0.05)"/>' +
+        '<line x1="' + X(o.nowIdx).toFixed(1) + '" x2="' + X(o.nowIdx).toFixed(1) + '" y1="' + (T - 4) + '" y2="' + (Hd - B) + '" stroke="#FFFFFF" stroke-dasharray="3 3" opacity="0.6"/>' +
+        '<text x="' + (X(o.nowIdx) + 4).toFixed(1) + '" y="' + (Hd - B - 6) + '" fill="#FFFFFF" font-size="11" opacity="0.8">ahora</text>';
+    }
+    var bw = (Wd - L - R) / n * 0.62;
+    for (i = 0; i < n; i++) {
+      if (pts[i].r) {
+        var bh = Math.max(3, pts[i].r / Math.max(rmax, o.rMin || 2) * (Hd - T - B) * 0.55);
+        svg += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + (Hd - B - bh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="2" fill="' + (pts[i].rc || o.rColor || '#5BA8FF') + '" opacity="0.85"/>';
+        if (o.rLabels !== false && n <= 30 && (Wd >= 600 || n <= 12 || pts[i].r >= rmax * 0.25)) { svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - B - bh - 4).toFixed(1) + '" fill="#DCE8FA" font-size="11" text-anchor="middle">' + (o.rFmt ? o.rFmt(pts[i].r) : mmTxt(pts[i].r)) + '</text>'; }
+      }
+      var every = (o.every || (n > 30 ? 3 : 1)) * (Wd < 600 && n > 12 ? 2 : 1);
+      if (i % every === 0 && pts[i].lab !== '') {
+        var lab = pts[i].lab != null ? pts[i].lab : pad(pts[i].d.getHours());
+        var strong = pts[i].d && pts[i].d.getHours() === 0;
+        svg += '<text x="' + X(i).toFixed(1) + '" y="' + (Hd - 10) + '" fill="' + (strong ? '#FFFFFF' : '#9AA9C2') + '" font-size="12" text-anchor="middle">' + lab + '</text>';
+      }
+      if (o.arrows && pts[i].dir != null && i % ((o.arrowEvery || 3) * (Wd < 600 ? 2 : 1)) === 0) {
+        svg += '<g transform="translate(' + X(i).toFixed(1) + ',14) rotate(' + ((pts[i].dir + 180) % 360) + ')"><path d="M0 -8 L0 8 M-4 -3 L0 -8 L4 -3" stroke="#5EC8FF" stroke-width="1.8" fill="none" stroke-linecap="round"/></g>';
+      }
+    }
+    function line(key, color, dash) {
+      var p = [], k;
+      for (k = 0; k < n; k++) { if (pts[k][key] != null) { p.push(X(k).toFixed(1) + ',' + Y(pts[k][key]).toFixed(1)); } }
+      return p.length > 1 ? '<polyline points="' + p.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linejoin="round"' + (dash ? ' stroke-dasharray="6 4"' : '') + '/>' : '';
+    }
+    if (o.bKey !== false) { svg += line('b', o.bColor || '#FFB86B', o.bDash); }
+    svg += line('a', o.aColor || '#5EC8FF', false);
+    if (o.marks) { for (i = 0; i < n; i++) { if (pts[i].a != null && o.marks(pts[i])) { svg += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(pts[i].a).toFixed(1) + '" r="4" fill="#FF9A3D"/>'; } } }
+    return '<svg class="hist" viewBox="0 0 ' + Wd + ' ' + Hd + '" preserveAspectRatio="none" style="height: ' + Hd + 'px" aria-hidden="true">' + svg + '</svg>';
+  }
+  function legend(items) {
+    var h = '<div class="ch-leg">';
+    for (var i = 0; i < items.length; i++) { h += '<span><i style="background: ' + items[i][0] + (items[i][2] ? '; height: 10px' : '') + '"></i>' + items[i][1] + '</span>'; }
+    return h + '</div>';
+  }
+  function factsHtml(facts) {
+    var fh = '<div class="dp-facts">';
+    for (var k = 0; k < facts.length; k++) { fh += '<div class="f"><div class="l">' + facts[k][0] + '</div><div class="v">' + facts[k][1] + '</div><div class="s">' + (facts[k][2] || '') + '</div></div>'; }
+    return fh + '</div>';
+  }
+  function showPanel(iconHtml, kicker, title, body) {
+    $('daypanel').innerHTML = '<div class="dp-box"><div class="dp-head">' + iconHtml + '<div class="dp-t"><div class="dp-n">' + kicker + '</div><div class="dp-c">' + title + '</div></div>' +
+      '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' + body + '<div class="dp-foot">Toca fuera para cerrar · se cierra sola en 1 min</div></div>';
+    $('daypanel').className = 'on';
+    clearTimeout(dayTimer);
+    dayTimer = setTimeout(closeDay, 60000);
+  }
+  /* horas de las últimas 24 h a las próximas 24 h, del modelo */
+  function hourWindow(back, fwd) {
+    var h = W.hourly, idx = hourIndex(h, W.current), out = [];
+    for (var k = Math.max(0, idx - back); k <= Math.min(h.time.length - 1, idx + fwd); k++) { out.push(k); }
+    return { list: out, nowIdx: idx - Math.max(0, idx - back) };
+  }
+  function iconSvg(path, color) { return '<svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>'; }
+  var IC_WIND = '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h16a3 3 0 1 1-3 3"/><path d="M3 16h8"/>';
+  var IC_DROP = '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>';
+  var IC_GAUGE = '<circle cx="12" cy="13" r="8"/><path d="M12 13l4-4M8 17h8"/>';
+  var IC_WAVE = '<path d="M2 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M2 19.5c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M7 9c1.5-3 4-5 8-5"/>';
+  var IC_SUN = SUN;
+
+  function openStat(k) {
+    if (!W) { return; }
+    var h = W.hourly, d = W.daily, wnd, pts = [], i, j, f;
+    if (k === 'wind') {
+      wnd = hourWindow(24, 24);
+      var gmax = { v: -1 }, gpast = { v: -1 };
+      for (i = 0; i < wnd.list.length; i++) {
+        j = wnd.list[i];
+        pts.push({ d: parseLocal(h.time[j]), a: h.wind_speed_10m ? h.wind_speed_10m[j] : null, b: h.wind_gusts_10m ? h.wind_gusts_10m[j] : null, dir: h.wind_direction_10m ? h.wind_direction_10m[j] : null });
+        var gv = h.wind_gusts_10m ? h.wind_gusts_10m[j] : null;
+        if (gv != null && i > wnd.nowIdx && gv > gmax.v) { gmax = { v: gv, d: parseLocal(h.time[j]) }; }
+        if (gv != null && i <= wnd.nowIdx && gv > gpast.v) { gpast = { v: gv, d: parseLocal(h.time[j]) }; }
+      }
+      var cw = W.current;
+      f = [['Ahora', Math.round(cw.wind_speed_10m) + ' km/h ' + compass(cw.wind_direction_10m), 'Rachas ' + Math.round(cw.wind_gusts_10m || 0) + ' km/h'],
+           ['Racha máx. próximas 24 h', gmax.v >= 0 ? Math.round(gmax.v) + ' km/h' : '--', gmax.d ? dayWord(gmax.d) + ' a las ' + pad(gmax.d.getHours()) + ' h' : ''],
+           ['Racha máx. últimas 24 h', gpast.v >= 0 ? Math.round(gpast.v) + ' km/h' : '--', gpast.d ? dayWord(gpast.d) + ' a las ' + pad(gpast.d.getHours()) + ' h' : '']];
+      var windTxt = gmax.v >= 70 ? 'Rachas muy fuertes en las próximas horas: cuidado con objetos sueltos y al circular.' : (gmax.v >= 50 ? 'Habrá rachas fuertes en algún momento de las próximas 24 h.' : 'Sin rachas fuertes previstas en las próximas 24 h.');
+      showPanel(iconSvg(IC_WIND, '#5EC8FF'), 'Viento · ' + esc(cfg.name), Math.round(cw.wind_speed_10m) + ' km/h del ' + compass(cw.wind_direction_10m),
+        factsHtml(f) + '<div class="ch-note">' + windTxt + '</div>' +
+        buildChart(pts, { nowIdx: wnd.nowIdx, aColor: '#5EC8FF', bColor: '#FFB86B', bDash: true, yMin: 0, arrows: true, marks: function (p) { return p.b >= 50; } }) +
+        legend([['#5EC8FF', 'viento medio (km/h)'], ['#FFB86B', 'rachas'], ['#FF9A3D', 'racha ≥ 50 km/h']]) + '<div class="ch-sub">Las flechas indican hacia dónde sopla · últimas 24 h y próximas 24 h</div>');
+    } else if (k === 'hum') {
+      wnd = hourWindow(24, 24);
+      var fog = [];
+      for (i = 0; i < wnd.list.length; i++) {
+        j = wnd.list[i];
+        var hum = h.relative_humidity_2m ? h.relative_humidity_2m[j] : null, dp = h.dew_point_2m ? h.dew_point_2m[j] : null;
+        pts.push({ d: parseLocal(h.time[j]), a: hum, b: null });
+        if (i > wnd.nowIdx && ((h.weather_code[j] === 45 || h.weather_code[j] === 48) || (hum >= 97 && dp != null && h.temperature_2m[j] - dp <= 1))) { fog.push(parseLocal(h.time[j])); }
+      }
+      var c = W.current, spread = c.temperature_2m - c.dew_point_2m;
+      var feel = c.dew_point_2m >= 20 ? 'Ambiente bochornoso' : (c.dew_point_2m >= 16 ? 'Algo húmedo' : (c.dew_point_2m >= 8 ? 'Agradable' : 'Aire seco'));
+      var minVis = null;
+      if (h.visibility) { for (i = wnd.nowIdx; i < wnd.list.length; i++) { var vv = h.visibility[wnd.list[i]]; if (vv != null && (minVis === null || vv < minVis)) { minVis = vv; } } }
+      f = [['Ahora', Math.round(c.relative_humidity_2m) + ' %', feel],
+           ['Punto de rocío', Math.round(c.dew_point_2m) + '°', 'Temp. − rocío: ' + fmtNum(spread, 1) + '°'],
+           ['Visibilidad mín. 24 h', minVis != null ? (minVis >= 10000 ? '+10 km' : (minVis >= 1000 ? fmtNum(minVis / 1000, 1) + ' km' : Math.round(minVis) + ' m')) : '--', minVis != null && minVis < 1000 ? 'Niebla' : '']];
+      var note = fog.length ? 'Posible niebla ' + dayWord(fog[0]) + ' hacia las ' + pad(fog[0].getHours()) + ' h.' : (spread <= 2 ? 'Temperatura muy cerca del punto de rocío: puede formarse niebla o rocío.' : 'Sin niebla prevista en las próximas 24 h.');
+      showPanel(iconSvg(IC_DROP, '#7FB6FF'), 'Humedad · ' + esc(cfg.name), Math.round(c.relative_humidity_2m) + ' % · ' + feel.toLowerCase(),
+        factsHtml(f) + '<div class="ch-note">' + note + '</div>' +
+        buildChart(pts, { nowIdx: wnd.nowIdx, aColor: '#7FB6FF', yMin: 0, yMax: 100, fixed: true, fmt: function (v) { return Math.round(v) + '%'; } }) +
+        legend([['#7FB6FF', 'humedad relativa (%)']]) + '<div class="ch-sub">Punto de rocío: la temperatura a la que el aire se satura. Si la temperatura baja hasta él, se forma rocío o niebla.</div>');
+    } else if (k === 'rain') {
+      /* hoy, hora a hora: medido en la estación si lo hay; si no, el modelo */
+      var today = String(d.time[0]), src;
+      if (obsFresh() && STN.hours && STN.hours.length) {
+        src = 'medido en ' + STN.station;
+        for (i = 0; i < STN.hours.length; i++) { var o = STN.hours[i], od = new Date(o.t); if (sameDay(od, now())) { pts.push({ d: od, r: o.rain || 0, rc: '#5BA8FF' }); } }
+      }
+      if (!pts.length) {
+        src = 'modelo';
+        for (j = 0; j < h.time.length; j++) { if (String(h.time[j]).slice(0, 10) === today) { var hd = parseLocal(h.time[j]); pts.push({ d: hd, r: h.precipitation[j] || 0, rc: hd > now() ? 'rgba(183,156,255,0.75)' : '#5BA8FF' }); } }
+      }
+      var tot = 0; for (i = 0; i < pts.length; i++) { tot += pts[i].r; }
+      var body = '<div class="al-k">Hoy, hora a hora · ' + esc(src) + (src === 'modelo' ? ' (violeta = previsto)' : '') + '</div>' +
+        buildChart(pts, { h: 170, yMin: 0, yMax: 1, every: 2, bKey: false, rMin: 1 }) +
+        '<div class="al-k">Últimos 7 días y próximos 7 (modelo)</div><div id="rain-days" class="loc-empty">Cargando…</div>';
+      showPanel(iconSvg(IC_DROP, '#5BA8FF'), 'Lluvia · ' + esc(cfg.name), 'Hoy ' + mmTxt(tot) + ' mm', body);
+      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + cfg.lat + '&longitude=' + cfg.lon + '&daily=precipitation_sum,precipitation_probability_max&past_days=7&forecast_days=7&timezone=' + encodeURIComponent(TZ);
+      getJSON(url, function (r) {
+        var el = $('rain-days'); if (!el || !r.daily) { return; }
+        var dp2 = [], ni = 0, sumP = 0;
+        for (var q = 0; q < r.daily.time.length; q++) {
+          var dd = parseLocal(r.daily.time[q] + 'T12:00'), fut = dd > now() && !sameDay(dd, now());
+          if (sameDay(dd, now())) { ni = q; }
+          if (!fut && !sameDay(dd, now())) { sumP += r.daily.precipitation_sum[q] || 0; }
+          dp2.push({ d: dd, lab: sameDay(dd, now()) ? 'hoy' : DOW[dd.getDay()].toLowerCase() + ' ' + dd.getDate(), r: r.daily.precipitation_sum[q] || 0, rc: fut ? 'rgba(183,156,255,0.75)' : '#5BA8FF' });
+        }
+        el.className = '';
+        el.innerHTML = buildChart(dp2, { h: 170, yMin: 0, yMax: 1, every: 1, bKey: false, nowIdx: ni, rMin: 2 }) +
+          '<div class="ch-sub">Últimos 7 días: ' + mmTxt(sumP) + ' mm (modelo) · azul = pasado, violeta = previsto</div>';
+      }, function () { var el = $('rain-days'); if (el) { el.textContent = 'Sin conexión.'; } });
+    } else if (k === 'press') {
+      wnd = hourWindow(24, 24);
+      for (i = 0; i < wnd.list.length; i++) { j = wnd.list[i]; pts.push({ d: parseLocal(h.time[j]), a: h.pressure_msl[j] }); }
+      var pnow = W.current.pressure_msl, idx = hourIndex(h, W.current);
+      var d3 = idx >= 3 ? pnow - h.pressure_msl[idx - 3] : 0, f12 = idx + 12 < h.time.length ? h.pressure_msl[idx + 12] - pnow : 0;
+      var trend = d3 <= -3 ? 'Bajando rápido: probable empeoramiento (lluvia o viento).' : (d3 <= -1 ? 'Bajando: puede empeorar.' : (d3 >= 3 ? 'Subiendo rápido: mejora, aunque puede venir viento.' : (d3 >= 1 ? 'Subiendo: tiende a mejorar.' : 'Estable: sin cambios importantes.')));
+      f = [['Ahora', Math.round(pnow) + ' hPa', pnow >= 1020 ? 'Alta (anticiclón)' : (pnow <= 1005 ? 'Baja (borrasca)' : 'Normal')],
+           ['Últimas 3 h', (d3 > 0 ? '+' : '') + fmtNum(d3, 1) + ' hPa', ''],
+           ['Próximas 12 h', (f12 > 0 ? '+' : '') + fmtNum(f12, 1) + ' hPa', 'previsión']];
+      showPanel(iconSvg(IC_GAUGE, '#B4C1D6'), 'Presión · ' + esc(cfg.name), Math.round(pnow) + ' hPa',
+        factsHtml(f) + '<div class="ch-note">' + trend + '</div>' +
+        buildChart(pts, { nowIdx: wnd.nowIdx, aColor: '#C5D1E6', minSpan: 6, fmt: function (v) { return Math.round(v); } }) +
+        legend([['#C5D1E6', 'presión a nivel del mar (hPa)']]));
+    } else if (k === 'sea') {
+      showPanel(iconSvg(IC_WAVE, '#5EC8FF'), 'Mar · ' + esc(cfg.name), $('sea').textContent, '<div id="sea-body" class="loc-empty">Cargando…</div>');
+      var sla = isHome ? cfg.seaLat : cfg.lat, slo = isHome ? cfg.seaLon : cfg.lon;
+      getJSON('https://marine-api.open-meteo.com/v1/marine?latitude=' + sla + '&longitude=' + slo + '&hourly=wave_height,wave_direction,wave_period,sea_surface_temperature&daily=wave_height_max&forecast_days=4&timezone=' + encodeURIComponent(TZ), function (m) {
+        var el = $('sea-body'); if (!el || !m.hourly) { return; }
+        var mp = [], mh = m.hourly, ni = 0, nowD = now();
+        for (var q = 0; q < mh.time.length && q < 72; q++) {
+          var md = parseLocal(mh.time[q]);
+          if (md <= nowD) { ni = q; }
+          mp.push({ d: md, a: mh.wave_height[q], dir: mh.wave_direction ? mh.wave_direction[q] : null, lab: md.getHours() === 0 ? DOW[md.getDay()] : (md.getHours() % 6 === 0 ? pad(md.getHours()) : '') });
+        }
+        function douglas(v) { return v == null ? '--' : v < 0.1 ? 'Calma' : v < 0.5 ? 'Marejadilla' : v < 1.25 ? 'Marejada' : v < 2.5 ? 'Fuerte marejada' : v < 4 ? 'Mar gruesa' : 'Mar muy gruesa'; }
+        var cwv = mh.wave_height[ni], days = '';
+        if (m.daily) { for (var q2 = 0; q2 < m.daily.time.length; q2++) { var dd2 = parseLocal(m.daily.time[q2] + 'T12:00'); days += '<div class="pt"><b>' + (q2 === 0 ? 'Hoy' : DOW[dd2.getDay()]) + '</b><span>' + fmtNum(m.daily.wave_height_max[q2] || 0, 1) + ' m · ' + douglas(m.daily.wave_height_max[q2]).toLowerCase() + '</span></div>'; } }
+        el.className = '';
+        el.innerHTML = factsHtml([['Olas ahora', cwv != null ? fmtNum(cwv, 1) + ' m' : '--', douglas(cwv)],
+            ['Periodo', mh.wave_period && mh.wave_period[ni] != null ? Math.round(mh.wave_period[ni]) + ' s' : '--', mh.wave_direction && mh.wave_direction[ni] != null ? 'Vienen del ' + compass(mh.wave_direction[ni]) : ''],
+            ['Agua', mh.sea_surface_temperature && mh.sea_surface_temperature[ni] != null ? fmtNum(mh.sea_surface_temperature[ni], 1) + '°' : '--', 'temperatura del mar']]) +
+          '<div class="dp-parts">' + days + '</div>' +
+          buildChart(mp, { nowIdx: ni, aColor: '#5EC8FF', yMin: 0, minSpan: 1, every: 1, arrows: true, arrowEvery: 6, fmt: function (v) { return fmtNum(v, 1) + ' m'; } }) +
+          legend([['#5EC8FF', 'altura de ola (m), próximos 3 días']]) + '<div class="ch-sub">Las flechas indican hacia dónde van las olas · datos de modelo, no aptos para navegación</div>';
+      }, function () { var el = $('sea-body'); if (el) { el.textContent = 'Sin conexión.'; } });
+    } else if (k === 'sun') {
+      var rows = '';
+      for (i = 0; i < d.time.length; i++) {
+        var sr = parseLocal(d.sunrise[i]), ss = parseLocal(d.sunset[i]), dl = d.daylight_duration ? d.daylight_duration[i] : (ss - sr) / 1000;
+        var dd3 = parseLocal(d.time[i] + 'T12:00');
+        rows += '<tr><td>' + (i === 0 ? 'Hoy' : DOW[dd3.getDay()] + ' ' + dd3.getDate()) + '</td><td>' + hhmm(sr) + '</td><td>' + hhmm(ss) + '</td><td>' + Math.floor(dl / 3600) + ' h ' + pad(Math.round(dl % 3600 / 60)) + ' min</td><td>' + (d.uv_index_max ? Math.round(d.uv_index_max[i] || 0) : '--') + '</td></tr>';
+      }
+      wnd = hourWindow(0, 23);
+      for (i = 0; i < wnd.list.length; i++) { j = wnd.list[i]; pts.push({ d: parseLocal(h.time[j]), a: h.uv_index ? h.uv_index[j] : null }); }
+      var dlt = d.daylight_duration && d.daylight_duration[1] != null ? Math.round((d.daylight_duration[1] - d.daylight_duration[0]) / 60) : null;
+      var mn = moonNext(now());
+      showPanel(iconSvg(IC_SUN, '#FFD27A'), 'Sol y luna · ' + esc(cfg.name), 'Salida ' + hhmm(parseLocal(d.sunrise[0])) + ' · puesta ' + hhmm(parseLocal(d.sunset[0])),
+        factsHtml([['Duración del día', d.daylight_duration ? Math.floor(d.daylight_duration[0] / 3600) + ' h ' + pad(Math.round(d.daylight_duration[0] % 3600 / 60)) + ' min' : '--', dlt != null ? (dlt < 0 ? 'Mañana ' + (-dlt) + ' min menos' : 'Mañana ' + dlt + ' min más') : ''],
+                   ['Luna', moonHtml(now()), ''],
+                   ['Próxima luna llena', dayWord(mn.full) === 'hoy' ? 'hoy' : mn.full.getDate() + ' de ' + MONTHS[mn.full.getMonth()], 'luna nueva: ' + mn.newm.getDate() + ' de ' + MONTHS[mn.newm.getMonth()]]]) +
+        '<table class="sun-t"><tr><th></th><th>Salida</th><th>Puesta</th><th>Luz</th><th>UV</th></tr>' + rows + '</table>' +
+        '<div class="al-k">Índice UV de las próximas horas</div>' + buildChart(pts, { h: 150, aColor: '#FFD27A', yMin: 0, yMax: 4, minSpan: 4, fmt: function (v) { return Math.round(v); } }));
+    }
+  }
+  /* próximas lunas llena y nueva */
+  function moonNext(dt) {
+    var syn = 29.530588853 * 86400000, base = Date.UTC(2000, 0, 6, 18, 14), t = dt.getTime();
+    var k = Math.floor((t - base) / syn), newm = new Date(base + (k + 1) * syn), full = new Date(base + (k + 0.5) * syn);
+    if (full < dt) { full = new Date(full.getTime() + syn); }
+    return { full: full, newm: newm };
   }
 
   /* Panel con todos los avisos (al pulsar la franja o «+N avisos») */
@@ -1558,7 +1780,7 @@
   function demoWeather() {
     var storm = cfg.demoAlert === 'naranja' || cfg.demoAlert === 'rojo';
     var H = now().getHours();
-    var time = [], temp = [], prob = [], prec = [], code = [], isDay = [], pres = [], cape = [], wsp = [];
+    var time = [], temp = [], prob = [], prec = [], code = [], isDay = [], pres = [], cape = [], wsp = [], gst = [], wdir = [], rh = [], dew = [], vis = [], uvi = [];
     for (var hh = -24; hh < 192; hh++) {
       var d = new Date(2026, 10, 14, hh);
       time.push(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':00');
@@ -1574,6 +1796,12 @@
       cape.push(storm && rel >= 0 && rel <= 5 ? 1800 : 150);
       if (hh >= 36 && hh <= 41) { mm = [0.4, 1.6, 2.4, 3.2, 1.1, 0.3][hh - 36]; prec[prec.length - 1] = mm; prob[prob.length - 1] = 70; code[code.length - 1] = 61; }
       wsp.push(Math.round(10 + 8 * Math.sin(hh / 5)));
+      gst.push(Math.round(22 + 16 * Math.sin(hh / 5) + (storm && rel >= 0 && rel < 6 ? 30 : 0)));
+      wdir.push((40 + hh * 9) % 360);
+      rh.push(Math.round(70 + 20 * Math.cos((hr - 5) / 24 * 2 * Math.PI)));
+      dew.push(11 + Math.sin(hh / 9));
+      vis.push(hr >= 4 && hr <= 7 ? 900 : 24000);
+      uvi.push(hr >= 9 && hr <= 16 ? Math.max(0, 2.6 * Math.sin((hr - 8) / 9 * Math.PI)) : 0);
     }
     var mt = [], mp = [];
     for (var k = -1; k < 8; k++) {
@@ -1585,7 +1813,7 @@
       current: { time: '2026-11-14T' + pad(H) + ':15', temperature_2m: H >= 20 ? 14.1 : (storm ? 15.2 : 18.2), apparent_temperature: storm ? 13 : 17.1, relative_humidity_2m: storm ? 94 : 68, dew_point_2m: storm ? 14.6 : 12.1,
         is_day: H >= 18 ? 0 : 1, weather_code: H >= 20 ? 0 : (storm ? 95 : 2), wind_speed_10m: storm ? 38 : 14, wind_direction_10m: storm ? 95 : 45, wind_gusts_10m: storm ? 71 : 32, pressure_msl: storm ? 1004.2 : 1013.1 },
       minutely_15: { time: mt, precipitation: mp },
-      hourly: { time: time, temperature_2m: temp, precipitation_probability: prob, precipitation: prec, weather_code: code, is_day: isDay, pressure_msl: pres, cape: cape, wind_speed_10m: wsp },
+      hourly: { time: time, temperature_2m: temp, precipitation_probability: prob, precipitation: prec, weather_code: code, is_day: isDay, pressure_msl: pres, cape: cape, wind_speed_10m: wsp, wind_gusts_10m: gst, wind_direction_10m: wdir, relative_humidity_2m: rh, dew_point_2m: dew, visibility: vis, uv_index: uvi },
       daily: {
         time: ['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'],
         weather_code: [storm ? 95 : 2, 61, 3, 0, 0, 2, 61, 3],
@@ -1593,7 +1821,7 @@
         precipitation_probability_max: [storm ? 90 : 40, 70, 20, 0, 0, 10, 60, 30], precipitation_sum: [storm ? 36 : 4, 6.2, 0, 0, 0, 0, 3.1, 0.4],
         sunrise: ['2026-11-14T07:51', '2026-11-15T07:52', '2026-11-16T07:53', '2026-11-17T07:54', '2026-11-18T07:55', '2026-11-19T07:56', '2026-11-20T07:57', '2026-11-21T07:58'],
         sunset: ['2026-11-14T17:38', '2026-11-15T17:37', '2026-11-16T17:36', '2026-11-17T17:36', '2026-11-18T17:35', '2026-11-19T17:34', '2026-11-20T17:34', '2026-11-21T17:33'],
-        uv_index_max: [2.1, 1.8, 2.4, 2.6, 2.5, 2.3, 1.5, 2], wind_gusts_10m_max: [storm ? 75 : 35, 45, 30, 25, 28, 30, 50, 40], wind_speed_10m_max: [storm ? 40 : 18, 24, 15, 12, 14, 15, 28, 20], wind_direction_10m_dominant: [45, 90, 315, 300, 330, 300, 90, 0]
+        uv_index_max: [2.1, 1.8, 2.4, 2.6, 2.5, 2.3, 1.5, 2], wind_gusts_10m_max: [storm ? 75 : 35, 45, 30, 25, 28, 30, 50, 40], wind_speed_10m_max: [storm ? 40 : 18, 24, 15, 12, 14, 15, 28, 20], wind_direction_10m_dominant: [45, 90, 315, 300, 330, 300, 90, 0], daylight_duration: [35220, 35100, 34980, 34860, 34740, 34620, 34500, 34400]
       }
     };
   }
@@ -1897,6 +2125,12 @@
     $('fullclose').onclick = exitFull;
     $('wide-alert').onclick = openAlerts;
     $('now').onclick = openHistory;
+    var cards = { 'wind': 'wind', 'hum': 'hum', 'rain': 'rain', 'press': 'press', 'sea': 'sea', 'sun': 'sun' };
+    for (var ck in cards) {
+      if (cards.hasOwnProperty(ck)) {
+        (function (key) { var el = $(key); if (el && el.parentNode) { el.parentNode.className += ' tap'; el.parentNode.onclick = function () { openStat(key); }; } })(ck);
+      }
+    }
     $('place-btn').onclick = openLocations;
     $('place-home').onclick = function (e) { if (e.stopPropagation) { e.stopPropagation(); } setLocation(HOME); };
     document.addEventListener('touchstart', armAway, false);
