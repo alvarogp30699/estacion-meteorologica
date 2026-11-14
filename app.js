@@ -688,7 +688,7 @@
     applySatellite();
     (function satTick() { setTimeout(function () { refreshSatellite(); satTick(); }, Math.max(1000, nextSlot() + 60000 - Date.now())); })();
     /* la imagen se carga siempre en segundo plano (invisible si las nubes están apagadas): al pulsar el botón sale al momento */
-    if (!satOn) { setTimeout(refreshSatellite, 15000); }
+    if (!satOn) { setTimeout(refreshSatellite, 8000); }
     if (map) { map.on('moveend', function () { clearTimeout(satTimer); satTimer = setTimeout(refreshSatellite, 1500); }); }
   }
   /* Una sola imagen para todo el mapa (no decenas de teselas): mucho más ligera para la tablet */
@@ -734,14 +734,13 @@
     var u = satUrl(), img = new Image();
     if (satOn) { $('sat-btn').className = 'on loading'; }
     img.onload = function () {
+      /* la imagen ya está descargada entera: se coloca esa misma imagen (sin volver a pedirla ni verla cargar a medias) */
       satSet = null; satShown = u.url;
-      if (satLayer) { satLayer.setUrl(u.url); satLayer.setBounds(u.bounds); }
-      else {
-        /* en la capa de mapas: por encima del mapa base (z 1) y por debajo del radar (z 10–20) */
-        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'tilePane', opacity: satOn ? 0.8 : 0, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
-        satLayer.getElement().style.zIndex = 5;
-      }
-      satLayer._latestUrl = u.url;
+      var nl = L.imageOverlay(img, u.bounds, { pane: 'tilePane', opacity: satOn ? 0.8 : 0, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
+      nl.getElement().style.zIndex = 5;
+      if (satLayer) { map.removeLayer(satLayer); }
+      satLayer = nl;
+      satLayer._latestUrl = u.url; satLayer._latestImg = img;
       if (satOn) { $('sat-btn').className = 'on'; if (playing) { preloadSatFrames(); } }
     };
     img.onerror = function () { if (satOn) { $('sat-btn').className = 'on err'; } };
@@ -751,7 +750,7 @@
     var btn = $('sat-btn');
     btn.className = satOn ? 'on' : '';
     if (cfg.demo || !map) { return; }
-    if (satLayer) { satLayer.setOpacity(satOn ? 0.8 : 0); if (satOn) { satLayer.setUrl(satLayer._latestUrl); satShown = satLayer._latestUrl; } }
+    if (satLayer) { satLayer.setOpacity(satOn ? 0.8 : 0); if (satOn && satShown !== satLayer._latestUrl) { satLayer.setUrl(satLayer._latestUrl); satShown = satLayer._latestUrl; } }
     else if (satOn) { refreshSatellite(); }
   }
 
