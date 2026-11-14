@@ -638,3 +638,5 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
 .wind-cv { position: absolute; left: 0; top: 0; pointer-events: none; }
 .sun-t.mdl tr:nth-child(2) td { font-weight: 400; color: inherit; }
 .sun-t.mdl tr:nth-child(2) td:first-child { color: #C5D1E6; }
+#tomorrow { cursor: pointer; }
+#tomorrow:active { border-color: #5EC8FF; }

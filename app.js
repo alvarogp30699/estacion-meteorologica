@@ -687,6 +687,8 @@
     btn.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } satOn = !satOn; try { localStorage.setItem('estacion-satelite', satOn ? '1' : '0'); } catch (e) { /* nada */ } applySatellite(); };
     applySatellite();
     (function satTick() { setTimeout(function () { refreshSatellite(); satTick(); }, Math.max(1000, nextSlot() + 60000 - Date.now())); })();
+    /* la imagen se carga siempre en segundo plano (invisible si las nubes están apagadas): al pulsar el botón sale al momento */
+    if (!satOn) { setTimeout(refreshSatellite, 15000); }
     if (map) { map.on('moveend', function () { clearTimeout(satTimer); satTimer = setTimeout(refreshSatellite, 1500); }); }
   }
   /* Una sola imagen para todo el mapa (no decenas de teselas): mucho más ligera para la tablet */
@@ -697,7 +699,7 @@
   function satTimeFor(t) { return Math.min(Math.floor(t / 1200) * 1200, satLatest()); }
   function isoZ(t) { var d = new Date(t * 1000); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':00Z'; }
   function preloadSatFrames() {
-    if (!satOn || !satLayer || cfg.demo || !obsFrames.length) { return; }
+    if (!satOn || !satLayer || cfg.demo || !obsFrames.length || LOWMEM) { return; } // en la tablet, solo la última imagen
     var u = satUrl(), base = u.url.replace(/&_t=\d+/, '');
     if (!satSet || satSet.base !== base) { satSet = { base: base, bounds: u.bounds, ready: {}, loading: {} }; }
     for (var k = 0; k < obsFrames.length; k++) {
@@ -722,27 +724,25 @@
   function satUrl() {
     var bnd = map.getBounds().pad(0.25), sz = map.getSize();
     var sw = L.CRS.EPSG3857.project(bnd.getSouthWest()), ne = L.CRS.EPSG3857.project(bnd.getNorthEast());
-    var w = Math.min(1024, Math.round(sz.x * 1.5 * 0.75)), h = Math.min(1024, Math.round(sz.y * 1.5 * 0.75));
+    var sc = LOWMEM ? 0.5 : 0.75, w = Math.min(1024, Math.round(sz.x * 1.5 * sc)), h = Math.min(1024, Math.round(sz.y * 1.5 * sc));
     return { bounds: bnd, url: 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&layers=' + (cfg.satLayer || 'mtg_fd:rgb_geocolour') +
       '&styles=&crs=EPSG:3857&bbox=' + [sw.x, sw.y, ne.x, ne.y].map(function (v) { return Math.round(v); }).join(',') +
       '&width=' + w + '&height=' + h + '&format=image/jpeg&_t=' + Math.floor(Date.now() / 600000) };
   }
   function refreshSatellite() {
-    if (!satOn || cfg.demo || !map) { return; }
+    if (cfg.demo || !map) { return; }
     var u = satUrl(), img = new Image();
-    $('sat-btn').className = 'on loading';
+    if (satOn) { $('sat-btn').className = 'on loading'; }
     img.onload = function () {
-      if (!satOn) { return; }
       satSet = null; satShown = u.url;
       if (satLayer) { satLayer.setUrl(u.url); satLayer.setBounds(u.bounds); }
       else {
         /* en la capa de mapas: por encima del mapa base (z 1) y por debajo del radar (z 10–20) */
-        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'tilePane', opacity: 0.8, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
+        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'tilePane', opacity: satOn ? 0.8 : 0, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
         satLayer.getElement().style.zIndex = 5;
       }
       satLayer._latestUrl = u.url;
-      if (playing) { preloadSatFrames(); }
-      $('sat-btn').className = 'on';
+      if (satOn) { $('sat-btn').className = 'on'; if (playing) { preloadSatFrames(); } }
     };
     img.onerror = function () { if (satOn) { $('sat-btn').className = 'on err'; } };
     img.src = u.url;
@@ -751,12 +751,13 @@
     var btn = $('sat-btn');
     btn.className = satOn ? 'on' : '';
     if (cfg.demo || !map) { return; }
-    if (satOn) { refreshSatellite(); }
-    else if (satLayer) { map.removeLayer(satLayer); satLayer = null; }
+    if (satLayer) { satLayer.setOpacity(satOn ? 0.8 : 0); if (satOn) { satLayer.setUrl(satLayer._latestUrl); satShown = satLayer._latestUrl; } }
+    else if (satOn) { refreshSatellite(); }
   }
 
   /* ======================= Viento animado en el mapa ======================= */
   /* Partículas que siguen el viento del modelo (rejilla de Open-Meteo de la hora actual). Pocas en la tablet. */
+  var LOWMEM = (navigator.deviceMemory && navigator.deviceMemory <= 1) || /Android [4-7]/.test(navigator.userAgent);
   var windGen = 0, windOn = false, windCv = null, windCtx = null, windParts = [], windField = null, windFieldDirty = true, windRun = false, windLast = 0, windMoving = false;
   function initWind() {
     var btn = $('wind-btn');
@@ -784,8 +785,9 @@
   }
   function placeWindCanvas() {
     if (!windCv || !windOn) { return; }
-    var sz = map.getSize();
-    windCv.width = sz.x; windCv.height = sz.y;
+    var sz = map.getSize(), R = LOWMEM ? 0.5 : 1;
+    windCv.width = Math.round(sz.x * R); windCv.height = Math.round(sz.y * R);
+    windCv.style.width = sz.x + 'px'; windCv.style.height = sz.y + 'px';
     L.DomUtil.setPosition(windCv, map.containerPointToLayerPoint([0, 0]));
     windParts = [];
   }
@@ -817,29 +819,28 @@
     windField = { S: S, cols: cols, rows: rows, f: f, hour: Math.floor(t / 3600) };
   }
   function fieldAt(x, y) {
-    var F = windField, c = Math.round(x / F.S), r = Math.round(y / F.S);
+    var F = windField, R = LOWMEM ? 0.5 : 1, c = Math.round(x / R / F.S), r = Math.round(y / R / F.S);
     if (c < 0 || r < 0 || c >= F.cols || r >= F.rows) { return null; }
     return F.f[r * F.cols + c];
   }
   function newPart(w, h) { return { x: Math.random() * w, y: Math.random() * h, age: Math.floor(Math.random() * 80) }; }
   function windLoop(gen) {
     if (!windRun || gen !== windGen) { return; }
-    var lowMem = (navigator.deviceMemory && navigator.deviceMemory <= 1) || /Android [4-7]/.test(navigator.userAgent);
-    var tnow = Date.now();
-    if (!document.hidden && !windMoving && tnow - windLast >= (lowMem ? 66 : 40)) {
+    var lowMem = LOWMEM, tnow = Date.now();
+    if (!document.hidden && !windMoving && tnow - windLast >= (lowMem ? 45 : 33)) {
       windLast = tnow;
       if (windFieldDirty || !windField || windField.hour !== Math.floor(tnow / 3600000)) { buildWindField(); }
       if (windField) {
-        var W2 = windCv.width, H2 = windCv.height, N = Math.round(W2 * H2 / (lowMem ? 3200 : 1600)), ctx = windCtx, k, p;
+        var W2 = windCv.width, H2 = windCv.height, N = Math.round(W2 * H2 / (lowMem ? 900 : 1600)), ctx = windCtx, k, p, R = lowMem ? 0.5 : 1;
         while (windParts.length < N) { windParts.push(newPart(W2, H2)); }
         ctx.globalCompositeOperation = 'destination-in'; ctx.fillStyle = 'rgba(0,0,0,0.9)'; ctx.fillRect(0, 0, W2, H2);
-        ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+        ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = lowMem ? 1 : 1.3; ctx.lineCap = 'round';
         var paths = [[], [], []];
         for (k = 0; k < windParts.length; k++) {
           p = windParts[k];
           var v = fieldAt(p.x, p.y);
           if (!v || p.age++ > 90) { windParts[k] = newPart(W2, H2); windParts[k].age = 0; continue; }
-          var nx = p.x + v[0] * 0.09, ny = p.y + v[1] * 0.09;
+          var nx = p.x + v[0] * 0.09 * R, ny = p.y + v[1] * 0.09 * R;
           paths[v[2] >= 50 ? 2 : (v[2] >= 25 ? 1 : 0)].push(p.x, p.y, nx, ny);
           p.x = nx; p.y = ny;
         }
@@ -2714,6 +2715,8 @@
     $('fullclose').onclick = exitFull;
     $('wide-alert').onclick = openAlerts;
     $('now').onclick = openHistory;
+    /* tarjeta «Mañana»: abre el detalle de ese día */
+    $('tomorrow').onclick = function () { openDay(now().getHours() < 12 ? 0 : 1); };
     var cards = { 'wind': 'wind', 'hum': 'hum', 'rain': 'rain', 'press': 'press', 'sea': 'sea', 'sun': 'sun' };
     for (var ck in cards) {
       if (cards.hasOwnProperty(ck)) {
