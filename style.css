@@ -263,13 +263,19 @@ button { font-family: inherit; }
 .hour .b.storm { background: #FFD23F; }
 .hour .b0 { width: 18px; height: 2px; border-radius: 1px; background: #22304A; }
 .hour .p { font-size: 13px; color: #8EC1FF; margin-top: 3px; }
-.hour .w { font-size: 14px; font-weight: 600; color: #DCE8FA; margin-top: 5px; white-space: nowrap; font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; }
-.hour .w .wa { width: 13px; height: 13px; margin: 0 2px 0 0; vertical-align: -1px; color: #5EC8FF; }
-.hour .g { font-size: 12px; color: #FFB86B; margin-top: 1px; }
-.hour .g.g50 { color: #FF9A3D; font-weight: 700; }
-.hour .g.g70 { color: #FF5A4E; font-weight: 700; }
+.hour .wind { width: 100%; margin-top: 6px; padding-top: 6px; border-top: 1px solid #1E2A41; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-align-items: center; align-items: center; color: #7FA9D6; }
+.hour .wind .wa { width: 16px; height: 16px; margin: 0; }
+.hour .wind .wa0 { display: block; width: 6px; height: 6px; margin: 5px 0; border-radius: 3px; background: #2D3D5C; }
+.hour .wind .ws { font-size: 14px; color: #C5D1E6; margin-top: 2px; white-space: nowrap; font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; }
+.hour .wind .ws span { font-size: 12px; color: #8494AF; margin-left: 3px; }
+.hour .wind .ws span:before { content: '·'; margin-right: 3px; }
+.hour .wind.calm { color: #4A5B78; }
+.hour .wind.w50 { color: #FF9A3D; }
+.hour .wind.w50 .ws span { color: #FF9A3D; font-weight: 700; }
+.hour .wind.w70 { color: #FF5A4E; }
+.hour .wind.w70 .ws span { color: #FF5A4E; font-weight: 700; }
 .key em { font-style: normal; color: #DCE8FA; }
-.key u { text-decoration: none; color: #FFB86B; }
+.key u { text-decoration: none; color: #8494AF; }
 
 /* Próximos 5 días */
 #days { padding: 8px; display: -webkit-flex; display: flex; -webkit-flex-shrink: 0; flex-shrink: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
