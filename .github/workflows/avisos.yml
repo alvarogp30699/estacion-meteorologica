@@ -57,7 +57,7 @@ jobs:
           python3 tools/rayos.py
       - name: Guardar si ha cambiado
         run: |
-          git add -A avisos.json meteocat.json clima.json observacion.json rayos.json 2>/dev/null || true
+          for f in avisos.json meteocat.json clima.json observacion.json rayos.json; do [ -f "$f" ] && git add "$f"; done
           if git diff --cached --quiet; then echo "Nada que guardar"; exit 0; fi
           git config user.name "avisos-bot"
           git config user.email "avisos-bot@users.noreply.github.com"
