@@ -1555,7 +1555,7 @@
 
   /* ---- Previsión +24 h: rejilla de puntos de Open-Meteo pintada en el navegador ---- */
   /* 17×13 = 221 puntos cada hora ≈ 5.300 llamadas/día: por debajo del límite gratuito (10.000) */
-  var GRID = { cols: 17, rows: 13, dLat: 0.24, dLon: 0.375, up: 10 };
+  var GRID = { cols: 13, rows: 10, dLat: 0.31, dLon: 0.5, up: 12 };
   var gridBounds = null;
 
   function gridPoints() {
@@ -1576,16 +1576,30 @@
     if (cfg.demo) { applyGrid(demoGrid()); return; }
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.lats.join(',') + '&longitude=' + pts.lons.join(',') +
       '&hourly=precipitation&forecast_hours=26&timeformat=unixtime&timezone=GMT';
+    /* La rejilla cuenta como muchas consultas en Open-Meteo: se guarda 50 min para no repetirla
+       en cada recarga (si no, se alcanza el límite gratuito y el mapa se queda sin la parte del modelo) */
+    var key = 'estacion-grid-' + cfg.lat + ',' + cfg.lon + '-' + GRID.cols + 'x' + GRID.rows, cached = null;
+    try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { cached = null; }
+    if (cached && cached.list && Date.now() - cached.at < 50 * 60000) { applyGrid(cached.list); return; }
+    clearTimeout(gridRetry);
     getJSON(url, function (d) {
-      if (!d || !d.length) { return; }
+      if (!d || !d.length || !d[0].hourly) { gridFail(cached); return; }
       var times = d[0].hourly.time, out = [];
       for (var k = 0; k < times.length; k++) {
         var vals = [];
         for (var p = 0; p < d.length; p++) { vals.push((d[p].hourly.precipitation[k]) || 0); }
         out.push({ time: times[k], vals: vals });
       }
+      try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), list: out })); } catch (e) { /* sin espacio */ }
       applyGrid(out);
-    }, function () { /* se reintenta en el siguiente ciclo */ });
+    }, function () { gridFail(cached); });
+  }
+  /* si falla: usa la última rejilla guardada (aunque sea vieja) y reintenta a los 5 min */
+  var gridRetry = null;
+  function gridFail(cached) {
+    if (cached && cached.list && Date.now() - cached.at < 6 * 3600000 && !fcFrames.length) { applyGrid(cached.list); }
+    clearTimeout(gridRetry);
+    gridRetry = setTimeout(loadForecastGrid, 5 * 60000);
   }
 
   function applyGrid(list) {
