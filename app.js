@@ -406,8 +406,10 @@
     var mx = 0, c;
     for (k = 0; k < hourCols.length; k++) {
       c = hourCols[k];
-      c.mm = 0; c.p = 0; c.code = 0;
+      c.mm = 0; c.p = 0; c.code = 0; c.ws = 0; c.wg = 0;
       for (j = c.i; j < c.i + c.n; j++) {
+        if (h.wind_speed_10m) { c.ws = Math.max(c.ws, h.wind_speed_10m[j] || 0); }
+        if (h.wind_gusts_10m) { c.wg = Math.max(c.wg, h.wind_gusts_10m[j] || 0); }
         c.mm += h.precipitation[j] || 0;
         c.p = Math.max(c.p, h.precipitation_probability[j] || 0);
         c.code = Math.max(c.code, h.weather_code[j] || 0);
@@ -430,12 +432,21 @@
       var cls = 'hour' + (prevH >= 0 && hr < prevH ? ' newday' : '') + (c.n === 3 && (hr < 7 || hr >= 22) ? ' night' : '');
       html += '<div class="' + cls + '"><div class="t">' + pad(hr) + 'h</div>' + svgIcon(hw.kind) +
         '<div class="d">' + Math.round(h.temperature_2m[c.i]) + '°</div><div class="bw">' + bar + '</div>' +
-        '<div class="p">' + Math.round(c.p) + ' %</div></div>';
+        '<div class="p">' + Math.round(c.p) + ' %</div>' + windCell(c, h, mid) + '</div>';
       prevH = hr;
     }
     $('hours-cols').innerHTML = html;
     renderCurve(h);
     renderHoursBand();
+  }
+
+  /* Viento de una columna: flecha hacia donde sopla, velocidad y rachas (km/h) */
+  function windCell(c, h, mid) {
+    if (!h.wind_speed_10m) { return ''; }
+    var dir = h.wind_direction_10m ? h.wind_direction_10m[mid] : null;
+    var arr = dir == null ? '' : '<svg class="wa" viewBox="0 0 16 16" aria-hidden="true"><g transform="rotate(' + ((dir + 180) % 360) + ' 8 8)"><path d="M8 2 L8 14 M4.5 5.5 L8 2 L11.5 5.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
+    var gc = c.wg >= 70 ? ' g70' : (c.wg >= 50 ? ' g50' : '');
+    return '<div class="w">' + arr + Math.round(c.ws) + '</div><div class="g' + gc + '">' + (h.wind_gusts_10m ? Math.round(c.wg) : '') + '</div>';
   }
 
   /* Curva de temperatura: cada grado sube o baja según la temperatura y una línea fina los une */
