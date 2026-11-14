@@ -2215,10 +2215,10 @@
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
       var txt = min < 1 ? 'ahora' : (min < 90 ? 'hace ' + min + ' min' : 'hace ' + Math.round(min / 60) + ' h');
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
-      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · estación ' + STN.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(STN.time)) : ' · modelo') + radarTxt; }
+      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · ' + STN.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(STN.time)) : ' · modelo') + radarTxt; }
     }
     var bt = batteryTxt();
-    if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent; el.className = 'warn'; }
+    if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent.replace(/^Actualizado /, ''); el.className = 'warn'; }
     if (frames.length) { showFrame(cur); }
   }
 
@@ -2654,7 +2654,7 @@
   }
   function batteryTxt() {
     if (!BAT || cfg.demo) { return ''; }
-    if (!BAT.charging) { return ' · ⚠ Sin cargar ' + BAT.level + ' %'; }
+    if (!BAT.charging) { return ' · ⚠ ' + BAT.level + ' % sin cargar'; }
     if (BAT.level <= cfg.batteryWarn) { return ' · Batería ' + BAT.level + ' %'; }
     return '';
   }
