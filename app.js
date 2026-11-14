@@ -1261,7 +1261,8 @@
     $('t-now').style.display = (fcFrames.length || ncFrames.length) ? 'block' : 'none';
     $('tlh-obs').style.width = OBS + '%';
     $('tlh-fc').style.display = (fcFrames.length || ncFrames.length) ? 'block' : 'none';
-    $('tlh-fc').innerHTML = ncFrames.length ? '<span class="nc">Radar previsto</span> → modelo' : 'Previsión del modelo';
+    $('tlh-fc').innerHTML = (ncFrames.length ? '<span class="nc">Radar previsto</span> → modelo' : 'Previsión del modelo') +
+      (!fcFrames.length && gridErr ? ' <span class="fc-err">no disponible (' + esc(gridErr) + ')</span>' : '');
     var t = '';
     function tick(left, txt, cls, shift) {
       return '<span class="' + (cls || '') + '" style="left: ' + left + '%; -webkit-transform: translateX(' + shift + '); transform: translateX(' + shift + ')">' + txt + '</span>';
@@ -1575,15 +1576,16 @@
     var pts = gridPoints();
     if (cfg.demo) { applyGrid(demoGrid()); return; }
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.lats.join(',') + '&longitude=' + pts.lons.join(',') +
-      '&hourly=precipitation&forecast_hours=26&timeformat=unixtime&timezone=GMT';
+      '&hourly=precipitation&forecast_hours=28&timeformat=unixtime&timezone=GMT';
     /* La rejilla cuenta como muchas consultas en Open-Meteo: se guarda 50 min para no repetirla
        en cada recarga (si no, se alcanza el límite gratuito y el mapa se queda sin la parte del modelo) */
     var key = 'estacion-grid-' + cfg.lat + ',' + cfg.lon + '-' + GRID.cols + 'x' + GRID.rows, cached = null;
     try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { cached = null; }
-    if (cached && cached.list && Date.now() - cached.at < 50 * 60000) { applyGrid(cached.list); return; }
+    if (cached && cached.list && Date.now() - cached.at < 2 * 3600000) { applyGrid(cached.list); return; }
     clearTimeout(gridRetry);
     getJSON(url, function (d) {
-      if (!d || !d.length || !d[0].hourly) { gridFail(cached); return; }
+      if (!d || !d.length || !d[0].hourly) { gridFail(cached, 'respuesta vacía'); return; }
+      gridErr = '';
       var times = d[0].hourly.time, out = [];
       for (var k = 0; k < times.length; k++) {
         var vals = [];
@@ -1592,11 +1594,13 @@
       }
       try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), list: out })); } catch (e) { /* sin espacio */ }
       applyGrid(out);
-    }, function () { gridFail(cached); });
+    }, function (e) { gridFail(cached, e && e.message ? e.message.replace('HTTP 429', 'límite de Open-Meteo') : 'error'); });
   }
   /* si falla: usa la última rejilla guardada (aunque sea vieja) y reintenta a los 5 min */
-  var gridRetry = null;
-  function gridFail(cached) {
+  var gridRetry = null, gridErr = '';
+  function gridFail(cached, why) {
+    gridErr = why || 'error';
+    layoutTimeline();
     if (cached && cached.list && Date.now() - cached.at < 6 * 3600000 && !fcFrames.length) { applyGrid(cached.list); }
     clearTimeout(gridRetry);
     gridRetry = setTimeout(loadForecastGrid, 5 * 60000);

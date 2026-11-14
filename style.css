@@ -584,3 +584,5 @@ svg.hist { display: block; width: 100%; height: 230px; margin-top: 12px; font-fa
   .stat .v { font-size: 20px; }
   .stat .u { font-size: 13px; }
 }
+
+#tlh-fc .fc-err { color: #FF9A3D; text-transform: none; letter-spacing: 0; font-size: 12px; }
