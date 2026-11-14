@@ -2233,6 +2233,7 @@
     }
     var bt = batteryTxt();
     if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent.replace(/^Actualizado /, ''); el.className = 'warn'; }
+    if (gpsNote) { el.textContent = '➤ ' + gpsNote; el.className = 'warn'; }
     if (frames.length) { showFrame(cur); }
   }
 
@@ -2584,7 +2585,7 @@
 
   /* ======================= Mi ubicación (GPS) ======================= */
   /* En el móvil o el PC se usa por defecto la ubicación del dispositivo; la tablet fija sigue en casa */
-  var GPSLOC = null, curIsGps = false, gpsBusy = false;
+  var GPSLOC = null, curIsGps = false, gpsBusy = false, gpsNote = '';
   function isFixedTablet() { return !!window.fully || /Android [4-7]/.test(navigator.userAgent); }
   function gpsAuto() {
     var v = null; try { v = localStorage.getItem('estacion-gps'); } catch (e) { v = null; }
@@ -2617,7 +2618,8 @@
       }, function () { /* sin nombre: se queda «Mi ubicación» */ });
     }, function (err) {
       gpsBusy = false;
-      if (done) { done(false, err && err.code === 1 ? 'Permiso de ubicación denegado (actívalo en los ajustes del navegador)' : 'No se pudo obtener la ubicación'); }
+      var why = !err ? 'No se pudo obtener la ubicación' : (err.code === 1 ? 'Sin permiso de ubicación (Ajustes → Privacidad → Localización → Safari)' : (err.code === 3 ? 'La ubicación tardó demasiado' : 'Ubicación no disponible'));
+      if (done) { done(false, why); }
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60000 });
   }
   function renderGpsRow(msg) {
@@ -2812,7 +2814,7 @@
     initWind();
     /* móvil/PC: empieza en la ubicación del dispositivo (si das permiso); si no, en casa */
     if (gpsAuto()) {
-      locateMe(true);
+      locateMe(true, function (ok, why) { if (!ok) { gpsNote = why + ' · se muestra ' + HOME.name; updateStatus(); setTimeout(function () { gpsNote = ''; updateStatus(); }, 20000); } });
       var lastLoc = Date.now();
       document.addEventListener('visibilitychange', function () { if (!document.hidden && gpsAuto() && (curIsGps || isHome) && Date.now() - lastLoc > 30 * 60000) { lastLoc = Date.now(); locateMe(true); } });
     }
