@@ -26,7 +26,7 @@ window.CONFIG = {
   // Datos medidos en la estación de AEMET (Reus aeropuerto). Los genera la misma tarea si el
   // repositorio tiene el secreto AEMET_API_KEY. Sin él, se usa el modelo y el radar.
   obsUrl: 'observacion.json',
-  obsMaxAgeMin: 120,     // si el último dato tiene más de 2 h, se ignora
+  obsMaxAgeMin: 180,     // si el último dato tiene más de 3 h, se ignora
 
   // Rayos de la última hora (satélite MTG de EUMETSAT). Los genera la misma tarea si el
   // repositorio tiene los secretos EUMETSAT_KEY y EUMETSAT_SECRET.

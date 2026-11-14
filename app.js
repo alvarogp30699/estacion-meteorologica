@@ -43,7 +43,7 @@
     autoplay: C.autoplay === true,
     playLoops: C.playLoops || 3,
     obsUrl: def(C.obsUrl, 'observacion.json'),
-    obsMaxAgeMin: C.obsMaxAgeMin || 120,
+    obsMaxAgeMin: C.obsMaxAgeMin || 180,
     sound: C.sound !== false,
     soundVolume: def(C.soundVolume, 0.25),
     days: C.days || 8,
@@ -630,21 +630,21 @@
 
   /* ======================= Estación de AEMET (datos medidos) ======================= */
   /* observacion.json lo genera la tarea de GitHub si el repositorio tiene la clave AEMET_API_KEY */
-  var OBS = null;
+  var STN = null;
   function loadObs() {
     if (cfg.demo || !cfg.obsUrl) { return; }
     var sep = cfg.obsUrl.indexOf('?') < 0 ? '?' : '&';
-    getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { OBS = d; if (W) { renderWeather(W); } updateStatus(); }, function () { OBS = null; });
+    getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { STN = d; if (W) { renderWeather(W); } updateStatus(); }, function () { STN = null; });
   }
   function obsFresh() {
-    if (!OBS || !OBS.time) { return false; }
-    var t = new Date(OBS.time);
+    if (!STN || !STN.time) { return false; }
+    var t = new Date(STN.time);
     return Date.now() - t.getTime() < cfg.obsMaxAgeMin * 60000 && sameDay(t, now());
   }
   /* Sustituye lo que da el modelo por lo medido en la estación */
   function applyObsStation() {
     if (!obsFresh()) { return false; }
-    var o = OBS;
+    var o = STN;
     if (o.temp != null) {
       $('temp').textContent = Math.round(o.temp) + '°';
       /* sensación: la del modelo corregida con la diferencia entre lo medido y lo previsto */
@@ -752,9 +752,9 @@
   function openHistory() {
     if (!W) { return; }
     var pts = [], src;
-    if (obsFresh() && OBS.hours && OBS.hours.length > 3) {
-      src = 'Medido en ' + OBS.station;
-      for (var i = 0; i < OBS.hours.length; i++) { var o = OBS.hours[i]; pts.push({ d: new Date(o.t), t: o.temp, r: o.rain || 0 }); }
+    if (obsFresh() && STN.hours && STN.hours.length > 3) {
+      src = 'Medido en ' + STN.station;
+      for (var i = 0; i < STN.hours.length; i++) { var o = STN.hours[i]; pts.push({ d: new Date(o.t), t: o.temp, r: o.rain || 0 }); }
     } else {
       src = 'Modelo de Open-Meteo (no hay datos medidos)';
       var h = W.hourly, idx = hourIndex(h, W.current);
@@ -1152,7 +1152,7 @@
       /* lluvia encima ahora (5×5 px alrededor) */
       var wet = 0, lv = 0, sum = 0;
       for (var y = tp.cy - 2; y <= tp.cy + 2; y++) { for (var x = tp.cx - 2; x <= tp.cx + 2; x++) { var r = dbzToMmh(pixDbz(dNew, (y * 768 + x) * 4)); if (r > 0) { wet++; sum += r; lv = Math.max(lv, mmhLevel(r)); } } }
-      radarHere = { time: fNew.time, wet: wet >= 3, level: lv, mmh: wet ? sum / wet : 0 };
+      radarHere = { time: fNew.time, wet: wet >= 3, level: mmhLevel(wet ? sum / wet : 0), mmh: wet ? sum / wet : 0 };
       radarOk = true;
       accumulate(radarHere);
       loadMosaic(fOld, tp, function (dOld) {
@@ -1345,7 +1345,7 @@
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
       var txt = min < 1 ? 'ahora' : (min < 90 ? 'hace ' + min + ' min' : 'hace ' + Math.round(min / 60) + ' h');
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
-      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
+      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + STN.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(STN.time)) : ' · datos del modelo') + radarTxt; }
     }
     var bt = batteryTxt();
     if (bt) { el.textContent = bt.replace(/^ · /, '') + ' · ' + el.textContent; el.className = 'warn'; }
@@ -1683,6 +1683,9 @@
     if (cfg.demo || !('serviceWorker' in navigator) || location.protocol !== 'https:') { return; }
     try { navigator.serviceWorker.register('sw.js').then(function () {}, function () {}); } catch (e) { /* no disponible */ }
   }
+
+  /* Para diagnosticar desde la consola del navegador: estacionDebug() */
+  window.estacionDebug = function () { return { obs: STN, obsFresh: obsFresh(), alerts: AL, radarHere: radarHere, radarEta: radarEta, battery: BAT, version: APP_V }; };
 
   /* ======================= Arranque ======================= */
   function start() {
