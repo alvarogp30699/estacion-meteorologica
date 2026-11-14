@@ -444,8 +444,9 @@
   function renderHoursBand() {
     var wrap = $('hours-wrap'), band = $('hours-band');
     var a = activeAlerts()[0];
+    $('hours-alert').className = 'ha';
     if (!a || !hourCols.length) { wrap.className = ''; return; }
-    var on = new Date(a.onset), ex = new Date(a.expires), first = -1, last = -1;
+    var on = new Date(a.onset), ex = roundEnd(new Date(a.expires)), first = -1, last = -1;
     for (var k = 0; k < hourCols.length; k++) {
       if (hourCols[k].start < ex && hourCols[k].end > on) { if (first < 0) { first = k; } last = k; }
     }
@@ -454,8 +455,11 @@
     band.style.left = (first / n * 100) + '%';
     band.style.width = ((last - first + 1) / n * 100) + '%';
     band.className = a.level;
-    band.textContent = LEVEL_NAME[a.level] + ' · ' + (on > now() ? pad(on.getHours()) + 'h – ' : 'hasta ') + pad(ex.getHours()) + 'h';
+    band.textContent = '';
     wrap.className = 'band';
+    var hb = $('hours-alert');
+    hb.className = 'ha ' + a.level;
+    hb.textContent = LEVEL_NAME[a.level] + ' ' + (on > now() ? 'de ' + pad(on.getHours()) + ' a ' + pad(ex.getHours()) + ' h' : 'hasta las ' + pad(ex.getHours()) + ' h');
   }
 
   function renderDays(dl) {
@@ -638,11 +642,14 @@
     return out;
   }
 
+  /* AEMET pone los finales a las HH:59:59: se redondean a la hora siguiente */
+  function roundEnd(d) { return d.getMinutes() >= 59 ? new Date(Math.ceil(d.getTime() / 60000) * 60000) : d; }
+  function when1(d) { return sameDay(d, now()) ? 'las ' + hhmm(d) : dayWord(d) + ' a las ' + hhmm(d); }
   function whenTxt(a) {
-    var on = new Date(a.onset), ex = new Date(a.expires), n = now();
-    var exT = dayWord(ex) + ' ' + hhmm(ex);
-    if (on <= n) { return 'hasta ' + exT; }
-    return dayWord(on) + ' ' + hhmm(on) + ' → ' + (sameDay(on, ex) ? hhmm(ex) : exT);
+    var on = new Date(a.onset), ex = roundEnd(new Date(a.expires)), n = now();
+    if (on <= n) { return 'hasta ' + when1(ex); }
+    if (sameDay(on, ex)) { return (sameDay(on, n) ? 'hoy' : dayWord(on)) + ' de ' + hhmm(on) + ' a ' + hhmm(ex); }
+    return 'desde ' + when1(on) + ' hasta ' + when1(ex);
   }
 
   function renderAlerts() {
@@ -692,6 +699,25 @@
     }
     afterAlertLayout(wasWide);
   }
+  /* Panel con todos los avisos (al pulsar la franja o «+N avisos») */
+  function openAlerts() {
+    var list = activeAlerts();
+    if (!list.length) { return; }
+    var html = '<div class="dp-box"><div class="dp-head">' + lineIcon(I_WARN, '#FF9A3D') + '<div class="dp-t"><div class="dp-n">Avisos de AEMET · ' + esc((AL && AL.zone) || '') + '</div>' +
+      '<div class="dp-c">' + list.length + (list.length === 1 ? ' aviso activo o previsto' : ' avisos activos o previstos') + '</div></div>' +
+      '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div><div class="al-list">';
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      html += '<div class="al-row ' + a.level + '"><span class="al-pill">' + LEVEL_NAME[a.level] + '</span><div class="al-tx"><div class="al-m">' + esc(a.event) + ' · ' + whenTxt(a) + '</div>' +
+        (a.detail ? '<div class="al-d">' + esc(a.detail) + '</div>' : '') + '</div></div>';
+    }
+    html += '</div><div class="dp-foot">Fuente: AEMET (vía MeteoAlarm)' + (AL && AL.updated ? ' · comprobado a las ' + hhmm(new Date(AL.updated)) : '') + ' · toca fuera para cerrar</div></div>';
+    $('daypanel').innerHTML = html;
+    $('daypanel').className = 'on';
+    clearTimeout(dayTimer);
+    dayTimer = setTimeout(closeDay, 30000);
+  }
+
   function afterAlertLayout() { renderHoursBand(); fixMapSize(); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
@@ -1186,7 +1212,7 @@
       var min = Math.max(0, Math.round((Date.now() - lastOk) / 60000));
       var txt = min < 1 ? 'ahora' : 'hace ' + min + ' min';
       if (lastError) { el.className = 'warn'; el.textContent = 'Sin conexión · datos de ' + txt + ' · reintentando' + radarTxt; }
-      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station + ' a las ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
+      else { el.className = radarOld ? 'warn' : ''; el.textContent = 'Actualizado ' + txt + (obsFresh() ? ' · medido en ' + OBS.station.replace(' aeropuerto', '') + ' ' + hhmm(new Date(OBS.time)) : ' · datos del modelo') + radarTxt; }
     }
     if (frames.length) { showFrame(cur); }
   }
@@ -1433,6 +1459,8 @@
 
     $('play').onclick = function () { setPlaying(!playing); touchFull(); };
     $('fullclose').onclick = exitFull;
+    $('wide-alert').onclick = openAlerts;
+    $('col-alert').onclick = function () { if (this.className.indexOf('calm') < 0) { openAlerts(); } };
     $('days').onclick = function (e) {
       var t = e.target;
       while (t && t !== this && !(t.getAttribute && t.getAttribute('data-j') !== null)) { t = t.parentNode; }
