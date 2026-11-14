@@ -565,16 +565,41 @@
     try { satOn = localStorage.getItem('estacion-satelite') === '1'; } catch (e) { satOn = false; }
     btn.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } satOn = !satOn; try { localStorage.setItem('estacion-satelite', satOn ? '1' : '0'); } catch (e) { /* nada */ } applySatellite(); };
     applySatellite();
-    (function satTick() { setTimeout(function () { if (satLayer) { satLayer.setParams({ _t: Math.floor(Date.now() / 600000) }); } satTick(); }, Math.max(1000, nextSlot() + 60000 - Date.now())); })();
+    (function satTick() { setTimeout(function () { refreshSatellite(); satTick(); }, Math.max(1000, nextSlot() + 60000 - Date.now())); })();
+    if (map) { map.on('moveend', function () { clearTimeout(satTimer); satTimer = setTimeout(refreshSatellite, 1500); }); }
+  }
+  /* Una sola imagen para todo el mapa (no decenas de teselas): mucho más ligera para la tablet */
+  var satTimer = null;
+  function satUrl() {
+    var bnd = map.getBounds().pad(0.25), sz = map.getSize();
+    var sw = L.CRS.EPSG3857.project(bnd.getSouthWest()), ne = L.CRS.EPSG3857.project(bnd.getNorthEast());
+    var w = Math.min(1024, Math.round(sz.x * 1.5 * 0.75)), h = Math.min(1024, Math.round(sz.y * 1.5 * 0.75));
+    return { bounds: bnd, url: 'https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.3.0&request=GetMap&layers=' + (cfg.satLayer || 'mtg_fd:rgb_geocolour') +
+      '&styles=&crs=EPSG:3857&bbox=' + [sw.x, sw.y, ne.x, ne.y].map(function (v) { return Math.round(v); }).join(',') +
+      '&width=' + w + '&height=' + h + '&format=image/jpeg&_t=' + Math.floor(Date.now() / 600000) };
+  }
+  function refreshSatellite() {
+    if (!satOn || cfg.demo || !map) { return; }
+    var u = satUrl(), img = new Image();
+    $('sat-btn').className = 'on loading';
+    img.onload = function () {
+      if (!satOn) { return; }
+      if (satLayer) { satLayer.setUrl(u.url); satLayer.setBounds(u.bounds); }
+      else {
+        if (!map.getPane('sat')) { map.createPane('sat'); map.getPane('sat').style.zIndex = 250; map.getPane('sat').style.pointerEvents = 'none'; }
+        satLayer = L.imageOverlay(u.url, u.bounds, { pane: 'sat', opacity: 0.7, interactive: false, attribution: 'Satélite &copy; EUMETSAT' }).addTo(map);
+      }
+      $('sat-btn').className = 'on';
+    };
+    img.onerror = function () { if (satOn) { $('sat-btn').className = 'on err'; } };
+    img.src = u.url;
   }
   function applySatellite() {
     var btn = $('sat-btn');
     btn.className = satOn ? 'on' : '';
-    if (cfg.demo) { return; }
-    if (satOn && !satLayer) {
-      satLayer = L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms', { layers: cfg.satLayer || 'mtg_fd:rgb_geocolour', format: 'image/jpeg', transparent: false, version: '1.3.0', opacity: 0.75, zIndex: 2, className: 'sat-img', attribution: 'Satélite &copy; EUMETSAT', _t: Math.floor(Date.now() / 600000) });
-      satLayer.addTo(map);
-    } else if (!satOn && satLayer) { map.removeLayer(satLayer); satLayer = null; }
+    if (cfg.demo || !map) { return; }
+    if (satOn) { refreshSatellite(); }
+    else if (satLayer) { map.removeLayer(satLayer); satLayer = null; }
   }
 
   /* ======================= Protector de pantalla ======================= */
