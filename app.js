@@ -419,7 +419,13 @@
   function loadHist() {
     if (cfg.demo) { HIST = demoHist(); return; }
     if (!cfg.histUrl) { return; }
-    getJSON(cfg.histUrl + '?t=' + Math.floor(Date.now() / 600000), function (d) { if (d && d.days) { HIST = d; } }, function () { /* sin historial */ });
+    getJSON(cfg.histUrl + '?t=' + Math.floor(Date.now() / 600000), function (d) {
+      if (!d || !d.days) { return; }
+      /* fuera los días calculados con pocas horas (salvo hoy): darían máximas y mínimas engañosas */
+      var today = dkey(now()), clean = {};
+      for (var k in d.days) { if (d.days.hasOwnProperty(k)) { var v = d.days[k]; if (v.src !== 'horas' || (v.n || 0) >= 18 || k === today) { clean[k] = v; } } }
+      d.days = clean; HIST = d;
+    }, function () { /* sin historial */ });
   }
   function demoHist() {
     var d = {}, b = now();
