@@ -41,6 +41,7 @@
     alertsEveryMin: C.alertsEveryMin || 10,
     meteocatUrl: def(C.meteocatUrl, 'meteocat.json'),
     climaUrl: def(C.climaUrl, 'clima.json'),
+    histUrl: def(C.histUrl, 'historial.json'),
     alertsUrl: def(C.alertsUrl, 'avisos.json'),
     autoplay: C.autoplay === true,
     playLoops: C.playLoops || 3,
@@ -413,6 +414,78 @@
     return html + (umb ? '<span class="umb" title="Lleva paraguas">☂</span>' : '') + '</div>';
   }
 
+  /* ======================= Historial propio de la estación ======================= */
+  var HIST = null;
+  function loadHist() {
+    if (cfg.demo) { HIST = demoHist(); return; }
+    if (!cfg.histUrl) { return; }
+    getJSON(cfg.histUrl + '?t=' + Math.floor(Date.now() / 600000), function (d) { if (d && d.days) { HIST = d; } }, function () { /* sin historial */ });
+  }
+  function demoHist() {
+    var d = {}, b = now();
+    for (var k = 420; k >= 0; k--) {
+      var x = new Date(b.getFullYear(), b.getMonth(), b.getDate() - k), q = doy(x), sn = Math.sin((q - 105) / 365 * 2 * Math.PI);
+      d[x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate())] = { tmax: Math.round((19 + 8 * sn + 3 * Math.sin(k)) * 10) / 10, tmin: Math.round((10 + 7 * sn + 2 * Math.cos(k)) * 10) / 10, rain: k % 11 === 0 ? 12.4 : (k % 7 === 0 ? 2.1 : 0), gust: 30 + (k % 9) * 4, src: 'aemet' };
+    }
+    return { station: 'Reus aeropuerto', days: d };
+  }
+  function dkey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  /* resumen de un periodo [desde, hasta] (claves AAAA-MM-DD) */
+  function histStats(from, to) {
+    var o = { n: 0, rain: 0, mx: null, mxD: null, mn: null, mnD: null, gust: null, gD: null, wet: 0 };
+    if (!HIST) { return o; }
+    for (var k in HIST.days) {
+      if (!HIST.days.hasOwnProperty(k) || k < from || k > to) { continue; }
+      var v = HIST.days[k]; o.n++;
+      if (v.rain != null) { o.rain += v.rain; if (v.rain >= 1) { o.wet++; } }
+      if (v.tmax != null && (o.mx === null || v.tmax > o.mx)) { o.mx = v.tmax; o.mxD = k; }
+      if (v.tmin != null && (o.mn === null || v.tmin < o.mn)) { o.mn = v.tmin; o.mnD = k; }
+      if (v.gust != null && (o.gust === null || v.gust > o.gust)) { o.gust = v.gust; o.gD = k; }
+    }
+    return o;
+  }
+  function dayTxt(k) { if (!k) { return ''; } var d = parseLocal(k + 'T12:00'); return 'el ' + d.getDate() + ' de ' + MONTHS[d.getMonth()] + (d.getFullYear() !== now().getFullYear() ? ' de ' + d.getFullYear() : ''); }
+  /* sección para el panel de temperatura: este mes, este año y récords de la estación */
+  function histHtml() {
+    if (!HIST || !HIST.days) { return ''; }
+    var n = now(), y = n.getFullYear(), m = n.getMonth(), pts = [], i;
+    var from = y + '-' + pad(m + 1) + '-01', to = dkey(n);
+    for (i = 1; i <= n.getDate(); i++) {
+      var k = y + '-' + pad(m + 1) + '-' + pad(i), v = HIST.days[k];
+      pts.push({ d: new Date(y, m, i, 12), lab: (i === 1 || i % 5 === 0) ? String(i) : '', a: v ? v.tmax : null, b: v ? v.tmin : null, r: v && v.rain ? v.rain : 0, rc: '#5BA8FF' });
+    }
+    var sm = histStats(from, to), sy = histStats(y + '-01-01', to), keys = Object.keys(HIST.days), all = histStats('0000', '9999');
+    if (!sm.n && !sy.n) { return ''; }
+    var first = keys.length ? keys[0] : null, html = '<div class="al-k">Medido en ' + esc(HIST.station || 'la estación') + ' · ' + MONTHS[m] + '</div>';
+    html += factsHtml([
+      ['Máxima del mes', sm.mx != null ? fmtNum(sm.mx, 1) + '°' : '--', dayTxt(sm.mxD)],
+      ['Mínima del mes', sm.mn != null ? fmtNum(sm.mn, 1) + '°' : '--', dayTxt(sm.mnD)],
+      ['Lluvia del mes', mmTxt(sm.rain) + ' mm', sm.wet + ' día' + (sm.wet === 1 ? '' : 's') + ' de lluvia']]);
+    if (pts.length > 1) {
+      html += buildChart(pts, { h: 170, aColor: '#FF8A65', bColor: '#7FB6FF', every: 1, rLabels: false, rMin: 5, fmt: function (v) { return Math.round(v) + '°'; } }) +
+        legend([['#FF8A65', 'máxima'], ['#7FB6FF', 'mínima'], ['#5BA8FF', 'lluvia del día', true]]);
+    }
+    html += '<div class="al-k">' + y + ' en la estación</div>' + factsHtml([
+      ['Lluvia del año', mmTxt(sy.rain) + ' mm', sy.wet + ' días de lluvia'],
+      ['Máxima del año', sy.mx != null ? fmtNum(sy.mx, 1) + '°' : '--', dayTxt(sy.mxD)],
+      ['Mínima del año', sy.mn != null ? fmtNum(sy.mn, 1) + '°' : '--', dayTxt(sy.mnD)]]);
+    if (first && first < y + '-01-01') {
+      html += '<div class="al-k">Récords de tu historial (desde ' + dayTxt(first).replace(/^el /, '') + ')</div>' + factsHtml([
+        ['Más calor', fmtNum(all.mx, 1) + '°', dayTxt(all.mxD)],
+        ['Más frío', fmtNum(all.mn, 1) + '°', dayTxt(all.mnD)],
+        ['Racha más fuerte', all.gust != null ? Math.round(all.gust) + ' km/h' : '--', dayTxt(all.gD)]]);
+    }
+    return html + '<div class="ch-sub">Datos oficiales diarios de AEMET y, para los últimos días, calculados con las observaciones horarias.</div>';
+  }
+  /* lluvia del año medida en la estación (si el historial cubre desde el 1 de enero) */
+  function yearRainStation() {
+    if (!HIST || !HIST.days) { return null; }
+    var y = now().getFullYear(), keys = Object.keys(HIST.days);
+    if (!keys.length || keys[0] > y + '-01-03') { return null; }
+    var s = histStats(y + '-01-01', dkey(now()));
+    return s.n >= doy(now()) - 6 ? s.rain : null;
+  }
+
   /* ======================= Fiabilidad: comparación de modelos ======================= */
   var MODELS = [['ecmwf_ifs025', 'ECMWF (europeo)'], ['gfs_seamless', 'GFS (americano)'], ['icon_seamless', 'ICON (alemán)'], ['meteofrance_seamless', 'Météo-France (AROME/ARPEGE)']];
   var CONF = null;
@@ -549,11 +622,12 @@
   }
   /* lluvia del año hasta hoy y lo normal hasta hoy */
   function yearRain() {
-    if (!YEAR || !YEAR.days.length) { return null; }
+    var st = yearRainStation();
+    if ((!YEAR || !YEAR.days.length) && st == null) { return null; }
     var k = doy(now()), tot = 0, nrm = 0, i;
-    for (i = 0; i <= k && i < YEAR.days.length; i++) { tot += YEAR.days[i]; }
+    if (st != null) { tot = st; } else { for (i = 0; i <= k && i < YEAR.days.length; i++) { tot += YEAR.days[i]; } }
     if (NORM && NORM.rn) { for (i = 0; i <= k; i++) { nrm += NORM.rn[i] || 0; } }
-    return { tot: tot, nrm: nrm, pct: nrm > 0 ? Math.round((tot / nrm - 1) * 100) : null };
+    return { tot: tot, nrm: nrm, pct: nrm > 0 ? Math.round((tot / nrm - 1) * 100) : null, measured: st != null };
   }
   /* récords del día de hoy */
   function todayRecord(j) {
@@ -855,6 +929,33 @@
       }
     }
     (window.requestAnimationFrame || function (fn) { return setTimeout(fn, 40); })(function () { windLoop(gen); });
+  }
+
+  /* ======================= Vigilancia: la tablet se recupera sola ======================= */
+  /* - Si los timers se congelan (tablet dormida, WebView en pausa), al volver se refresca todo al momento.
+     - Si los datos llevan más de 35 min sin actualizarse habiendo conexión, se recarga la página
+       (como mucho una vez cada 20 min, para no entrar en bucle). */
+  function watchdog() {
+    var last = Date.now();
+    setInterval(function () {
+      var t = Date.now(), gap = t - last; last = t;
+      if (gap > 90000) { refreshAll(); return; }
+      var stale = lastOk && t - lastOk > 35 * 60000;
+      if (stale && navigator.onLine !== false && !cfg.demo) {
+        var prev = 0; try { prev = +sessionStorage.getItem('estacion-recarga') || 0; } catch (e) { prev = 0; }
+        if (t - prev > 20 * 60000) {
+          try { sessionStorage.setItem('estacion-recarga', String(t)); } catch (e) { /* nada */ }
+          location.reload();
+        } else { refreshAll(); }
+      }
+    }, 15000);
+    window.addEventListener('online', refreshAll);
+  }
+  function refreshAll() {
+    if (cfg.demo) { return; }
+    weatherFails = 0; radarFails = 0;
+    clearTimeout(weatherTimer); clearTimeout(radarTimer);
+    loadWeather(); loadRadar(); loadAlerts(); loadObs(); loadHist();
   }
 
   /* ======================= Protector de pantalla ======================= */
@@ -1319,7 +1420,7 @@
       '<div class="dp-t"><div class="dp-n">Últimas 24 horas · ' + esc(src) + '</div><div class="dp-c">Temperatura <b>' + fmtNum(pts[imn].t, 1) + '° – ' + fmtNum(pts[imx].t, 1) + '°</b> · Lluvia <b>' + mmTxt(rsum) + ' mm</b></div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
       '<svg class="hist" viewBox="0 0 ' + Wd + ' ' + Hd + '" preserveAspectRatio="none" aria-label="Gráfico de temperatura y lluvia de las últimas 24 horas">' + svg + '</svg>' +
-      recordsHtml() +
+      histHtml() + recordsHtml() +
       '<div class="dp-foot"><span class="k1"></span>temperatura · <span class="k2"></span>lluvia por hora (mm) · toca fuera para cerrar</div></div>';
     $('daypanel').innerHTML = html;
     $('daypanel').className = 'on';
@@ -1343,12 +1444,12 @@
     var ni = 0, top = 1; for (i = 0; i < pts.length; i++) { if (pts[i].a != null) { ni = i; top = Math.max(top, pts[i].a); } if (pts[i].b != null) { top = Math.max(top, pts[i].b); } }
     var txt = yr.pct == null ? '' : (Math.abs(yr.pct) < 10 ? 'Más o menos lo normal' : (yr.pct < 0 ? Math.abs(yr.pct) + ' % menos de lo normal' : yr.pct + ' % más de lo normal'));
     return '<div class="al-k">Este año</div>' + factsHtml([
-        ['Llovido en ' + now().getFullYear(), Math.round(yr.tot) + ' mm', 'del 1 de enero a hoy'],
+        ['Llovido en ' + now().getFullYear(), Math.round(yr.tot) + ' mm', yr.measured ? 'medido en ' + esc(HIST.station || 'la estación') : 'del 1 de enero a hoy (modelo)'],
         ['Lo normal a estas alturas', yr.nrm ? Math.round(yr.nrm) + ' mm' : '--', 'media 1991–2020'],
         ['Diferencia', txt || '--', '']]) +
       buildChart(pts, { h: 170, nowIdx: ni, aColor: '#5BA8FF', bColor: '#9AA9C2', bDash: true, yMin: 0, yMax: Math.ceil(top * 1.1 / 50) * 50, fixed: true, every: 1, fmt: function (v) { return Math.round(v); } }) +
       legend([['#5BA8FF', 'este año (mm acumulados)'], ['#9AA9C2', 'año normal']]) +
-      '<div class="ch-sub">Lluvia del modelo para este punto (no medida en una estación).</div>';
+      '<div class="ch-sub">' + (yr.measured ? 'El total es lo medido en la estación; la curva es la del modelo para este punto.' : 'Lluvia del modelo para este punto (no medida en una estación).') + '</div>';
   }
   function recordsHtml() {
     var r = todayRecord(0);
@@ -1391,7 +1492,7 @@
         '<line x1="' + X(o.nowIdx).toFixed(1) + '" x2="' + X(o.nowIdx).toFixed(1) + '" y1="' + (T - 4) + '" y2="' + (Hd - B) + '" stroke="#FFFFFF" stroke-dasharray="3 3" opacity="0.6"/>' +
         '<text x="' + (X(o.nowIdx) + 4).toFixed(1) + '" y="' + (Hd - B - 6) + '" fill="#FFFFFF" font-size="11" opacity="0.8">ahora</text>';
     }
-    var bw = (Wd - L - R) / n * 0.62;
+    var bw = Math.min(16, (Wd - L - R) / n * 0.62);
     for (i = 0; i < n; i++) {
       if (pts[i].r) {
         var bh = Math.max(3, pts[i].r / Math.max(rmax, o.rMin || 2) * (Hd - T - B) * 0.55);
@@ -2887,7 +2988,9 @@
     setInterval(loadForecastGrid, cfg.forecastEveryMin * 60000);
     setInterval(loadSea, cfg.seaEveryMin * 60000);
     /* avisos y estación también a horas fijas (:00, :10, :20…) */
-    (function slotTick() { setTimeout(function () { loadAlerts(); loadObs(); slotTick(); }, Math.max(1000, nextSlot() - Date.now())); })();
+    (function slotTick() { setTimeout(function () { loadAlerts(); loadObs(); loadHist(); slotTick(); }, Math.max(1000, nextSlot() - Date.now())); })();
+    loadHist();
+    watchdog();
     setInterval(loadAir, 60 * 60000);
     setInterval(checkVersion, 10 * 60000);
     setInterval(loadLightning, 5 * 60000);

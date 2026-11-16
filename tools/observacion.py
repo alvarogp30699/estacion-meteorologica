@@ -52,7 +52,8 @@ def resumir(datos, ahora):
             lluvia += float(o["prec"])
     horas = []
     for o in obs[-24:]:
-        horas.append({"t": fecha(o["fint"]).isoformat(), "temp": o.get("ta"), "rain": o.get("prec"), "hum": o.get("hr"), "wind": kmh(o.get("vv"))})
+        horas.append({"t": fecha(o["fint"]).isoformat(), "temp": o.get("ta"), "tmax": o.get("tamax"), "tmin": o.get("tamin"),
+                      "rain": o.get("prec"), "hum": o.get("hr"), "wind": kmh(o.get("vv")), "gust": kmh(o.get("vmax"))})
     return {
         "station": NOMBRE, "id": ESTACION, "hours": horas,
         "time": fecha(u["fint"]).isoformat(),
