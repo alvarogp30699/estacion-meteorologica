@@ -751,3 +751,19 @@ html.mapfull, html.mapfull body { overflow: hidden; }
 .sx i { font-style: normal; color: #6F80A0; font-size: 11px; margin-left: 4px; }
 #summary .sx { color: #9AA9C2; }
 @media (max-width: 900px), (max-height: 560px) { .sx { white-space: normal; } }
+
+/* Más sitio para el mapa en la tablet: tarjeta de 24 h más compacta */
+@media (min-width: 901px) and (min-height: 561px) {
+  #hours { padding: 8px 8px 4px; margin-bottom: 10px; }
+  .hour { padding: 2px 0; }
+  .hour svg { width: 22px; height: 22px; margin-top: 1px; }
+  .hour .bw { height: 36px; }
+  .hour .p { margin-top: 1px; }
+  .hour .wind { -webkit-flex-direction: row; flex-direction: row; -webkit-justify-content: center; justify-content: center; margin-top: 4px; padding-top: 4px; }
+  .hour .wind .wa { width: 14px; height: 14px; margin-right: 2px; }
+  .hour .wind .wa0 { margin: 0 4px 0 0; }
+  .hour .wind .ws { margin-top: 0; }
+  #summary { font-size: 14px; line-height: 1.3; margin-bottom: 8px; }
+  .alert-banner.calm.sum { font-size: 14px; line-height: 1.3; padding-top: 5px; padding-bottom: 5px; }
+  .sx { margin-top: 1px; font-size: 12px; }
+}
