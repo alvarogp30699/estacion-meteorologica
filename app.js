@@ -222,7 +222,7 @@
     var w = wmo(cur.weather_code, cur.is_day);
     var idx = hourIndex(h, cur);
 
-    $('temp').textContent = Math.round(cur.temperature_2m) + '°';
+    $('temp').innerHTML = tempHtml(cur.temperature_2m);
     $('bigicon').innerHTML = svgIcon(w.kind);
     $('cond').textContent = w.label;
     $('range').textContent = 'Sensación ' + Math.round(cur.apparent_temperature) + '° · Máx ' +
@@ -1259,7 +1259,7 @@
     if (!obsFresh()) { return false; }
     var o = STN;
     if (o.temp != null) {
-      $('temp').textContent = Math.round(o.temp) + '°';
+      $('temp').innerHTML = tempHtml(o.temp);
       /* sensación: la del modelo corregida con la diferencia entre lo medido y lo previsto */
       var wc = W && W.current, dl = W && W.daily;
       if (wc && dl) {
@@ -1716,6 +1716,12 @@
   }
 
   function afterAlertLayout() { renderHoursBand(); fixMapSize(); drawCurveLine(); }
+  /* temperatura grande con un decimal: «24,3°» (el decimal algo más pequeño) */
+  function tempHtml(v) {
+    var r = Math.round(v * 10) / 10, neg = r < 0, a = Math.abs(r), ent = Math.floor(a), dec = Math.round((a - ent) * 10);
+    if (dec === 10) { ent++; dec = 0; }
+    return (neg ? '−' : '') + ent + '<span class="dec">,' + dec + '</span>°';
+  }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ======================= Radar: observado + previsión ======================= */

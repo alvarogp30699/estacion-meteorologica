@@ -728,3 +728,5 @@ html.mapfull, html.mapfull body { overflow: hidden; }
 #loc-gps .loc-ic { -webkit-transform: rotate(-45deg); transform: rotate(-45deg); }
 .gps-auto { display: block; margin: 8px 4px 0; font-size: 13px; color: #9AA9C2; }
 .gps-auto input { margin-right: 6px; vertical-align: -2px; }
+
+#temp .dec { font-size: 0.55em; letter-spacing: 0; }
