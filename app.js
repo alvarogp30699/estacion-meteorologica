@@ -828,7 +828,7 @@
   }
 
   /* ======================= Resumen en una frase ======================= */
-  var SUMMARY = '';
+  var SUMMARY = '', SUMEXTRA = [], sumIdx = 0, sumTimer = null;
   function skyOf(code) {
     if (code >= 95) { return 'storm'; }
     if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) { return 'rain'; }
@@ -893,17 +893,19 @@
     var gmax = 0, gi = -1;
     if (h.wind_gusts_10m) { for (var q = idx; q <= idx + 12 && q < h.time.length; q++) { if ((h.wind_gusts_10m[q] || 0) > gmax) { gmax = h.wind_gusts_10m[q]; gi = q; } } }
     if (gmax >= 50) { out.push('Rachas de hasta ' + Math.round(gmax) + ' km/h' + (gi > idx ? ' hacia las ' + hNum(gi) + ' h' : ' ahora')); }
-    if (nt) { out.push(nt); }
+    /* lo esencial va en la frase; lo demás (curiosidades, comparaciones) va aparte, de uno en uno */
     var ctm = W.daily.time[1] ? confFor(String(W.daily.time[1])) : null;
-    if (ctm && ctm.lvl === 'baja' && (isEvening() || hr >= 14)) { out.push('Ojo: la previsión de mañana es poco fiable (' + ctm.why.toLowerCase() + ')'); }
-    var nr = recordState().near;
-    for (var nq = 0; nq < nr.length; nq++) { out.push(nr[nq]); }
-    var tf = topFacts(2);
-    for (var tq = 0; tq < tf.length; tq++) { out.push(tf[tq]); }
+    if (ctm && ctm.lvl === 'baja' && (isEvening() || hr >= 14)) { out.push('Previsión de mañana poco fiable'); }
+    var ex = [], nr = recordState().near, tf = topFacts(3), q2;
+    for (q2 = 0; q2 < nr.length; q2++) { ex.push(nr[q2]); }
+    for (q2 = 0; q2 < tf.length; q2++) { ex.push(tf[q2]); }
+    var rare = false; for (q2 = 0; q2 < tf.length; q2++) { if (/excepcionalmente|muy cálido|muy frío/.test(tf[q2])) { rare = true; } }
+    if (nt && !rare) { ex.push(nt); }
     if (idx >= 24) {
       var dy = W.current.temperature_2m - h.temperature_2m[idx - 24];
-      if (Math.abs(dy) >= 3) { out.push(Math.round(Math.abs(dy)) + '° ' + (dy > 0 ? 'más' : 'menos') + ' que ayer a esta hora'); }
+      if (Math.abs(dy) >= 4) { ex.push(Math.round(Math.abs(dy)) + '° ' + (dy > 0 ? 'más' : 'menos') + ' que ayer a esta hora'); }
     }
+    SUMEXTRA = ex;
     return out.join('. ') + '.';
   }
   function tomorrowPhrase(j) {
@@ -926,18 +928,32 @@
     placeSummary();
   }
   /* sin avisos: la frase va dentro de la franja verde; con aviso, en una línea propia debajo */
+  function extraHtml() {
+    if (!SUMEXTRA.length) { return ''; }
+    var t = SUMEXTRA[sumIdx % SUMEXTRA.length];
+    return '<span class="sx" id="sumx">✨ ' + esc(t) + (SUMEXTRA.length > 1 ? ' <i>' + (sumIdx % SUMEXTRA.length + 1) + '/' + SUMEXTRA.length + '</i>' : '') + '</span>';
+  }
+  /* sin avisos: la frase va dentro de la franja verde; con aviso, en una línea propia debajo.
+     Debajo, en pequeño, un dato curioso que va cambiando cada 12 s (al tocarlo se abre la lista) */
   function placeSummary() {
     var col = $('col-alert'), el = $('summary');
     if (!el) { return; }
     var calm = col.className.indexOf(' calm') >= 0 && col.className.indexOf('gray') < 0;
     if (calm && SUMMARY) {
       col.className += ' sum';
-      col.innerHTML = lineIcon(I_CHECK, '#3DDC84') + '<span class="calm-t"><span class="sm">' + esc(SUMMARY) + '</span><span class="sz">Sin avisos AEMET</span></span>';
+      col.innerHTML = lineIcon(I_CHECK, '#3DDC84') + '<span class="calm-t"><span class="sm">' + esc(SUMMARY) + extraHtml() + '</span><span class="sz">Sin avisos AEMET</span></span>';
       el.className = ''; el.textContent = '';
     } else {
-      el.textContent = SUMMARY;
+      el.innerHTML = esc(SUMMARY) + extraHtml();
       el.className = SUMMARY ? 'on' : '';
     }
+    var sx = $('sumx'); if (sx) { sx.onclick = function (ev) { if (ev.stopPropagation) { ev.stopPropagation(); } openHistory(); }; }
+    clearTimeout(sumTimer);
+    if (SUMEXTRA.length > 1) { sumTimer = setTimeout(function () { sumIdx++; var x = $('sumx'); if (x) { x.outerHTML = extraHtml(); var y = $('sumx'); if (y) { y.onclick = function (ev) { if (ev.stopPropagation) { ev.stopPropagation(); } openHistory(); }; } } placeSummaryTick(); }, 12000); }
+  }
+  function placeSummaryTick() {
+    clearTimeout(sumTimer);
+    if (SUMEXTRA.length > 1) { sumTimer = setTimeout(function () { sumIdx++; var x = $('sumx'); if (x) { x.outerHTML = extraHtml(); var y = $('sumx'); if (y) { y.onclick = function (ev) { if (ev.stopPropagation) { ev.stopPropagation(); } openHistory(); }; } } placeSummaryTick(); }, 12000); }
   }
 
   /* ======================= Satélite (nubes) ======================= */

@@ -745,3 +745,9 @@ html.mapfull, html.mapfull body { overflow: hidden; }
 
 .cur-l { margin: 6px 0 4px; padding-left: 20px; font-size: 15px; line-height: 1.45; color: #DCE8FA; }
 .cur-l li { margin-bottom: 3px; }
+
+/* Dato curioso bajo el resumen: una sola línea, va rotando */
+.sx { display: block; margin-top: 3px; font-size: 13px; color: #B9C6DC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.sx i { font-style: normal; color: #6F80A0; font-size: 11px; margin-left: 4px; }
+#summary .sx { color: #9AA9C2; }
+@media (max-width: 900px), (max-height: 560px) { .sx { white-space: normal; } }
