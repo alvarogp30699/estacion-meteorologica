@@ -767,3 +767,4 @@ html.mapfull, html.mapfull body { overflow: hidden; }
   .alert-banner.calm.sum { font-size: 14px; line-height: 1.3; padding-top: 5px; padding-bottom: 5px; }
   .sx { margin-top: 1px; font-size: 12px; }
 }
+#fullclose .fc-n { display: inline-block; min-width: 2.6em; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(94, 200, 255, 0.18); color: #5EC8FF; font-weight: 700; text-align: center; font-family: 'Space Grotesk', 'Inter', Roboto, sans-serif; }

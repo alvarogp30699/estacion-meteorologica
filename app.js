@@ -1978,14 +1978,13 @@
   }
 
   /* ---- Radar ampliado: tocar el mapa lo pone a pantalla completa; vuelve solo tras unos segundos sin tocarlo ---- */
-  var full = false, fullTimer = null, zoomCtl = null;
+  var full = false, fullTimer = null, zoomCtl = null, fullEnd = 0, fullTick = null;
   function enterFull() {
     full = true;
     $('radar').className += ' full';
     /* el desplazamiento antiquemado (transform) rompería el «position: fixed» del mapa ampliado */
     var ap = $('app'); ap.style.webkitTransform = 'none'; ap.style.transform = 'none';
     document.documentElement.className += ' mapfull';
-    $('fullclose').textContent = isCompact() ? '✕ Volver' : 'Toca aquí para volver · vuelve sola en ' + cfg.fullRadarSec + ' s';
     updateFullInfo();
     zoomCtl = L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar', zoomOutTitle: 'Alejar' }).addTo(map);
     applyCompactMap();
@@ -1995,7 +1994,7 @@
   function exitFull() {
     if (!full) { return; }
     full = false;
-    clearTimeout(fullTimer);
+    clearTimeout(fullTimer); clearInterval(fullTick);
     $('radar').className = $('radar').className.replace(/\s*full/g, '');
     document.documentElement.className = document.documentElement.className.replace(/\s*mapfull/g, '');
     if (zoomCtl) { map.removeControl(zoomCtl); zoomCtl = null; }
@@ -2003,10 +2002,19 @@
     userMoved = false;
     fixMapSize();
   }
+  /* cada toque reinicia la cuenta atrás; el botón enseña los segundos que quedan */
   function touchFull() {
     if (!full) { return; }
     clearTimeout(fullTimer);
+    fullEnd = Date.now() + cfg.fullRadarSec * 1000;
     fullTimer = setTimeout(exitFull, cfg.fullRadarSec * 1000);
+    fullLabel();
+    clearInterval(fullTick); fullTick = setInterval(fullLabel, 1000);
+  }
+  function fullLabel() {
+    var left = Math.max(0, Math.ceil((fullEnd - Date.now()) / 1000)), el = $('fullclose');
+    if (!el) { return; }
+    el.innerHTML = (isCompact() ? '✕ Volver' : 'Toca aquí para volver') + ' <span class="fc-n">' + left + ' s</span>';
   }
   function updateFullInfo() {
     if (!W) { $('fullinfo').innerHTML = '<span class="c">' + $('clock').textContent + '</span>'; return; }
