@@ -730,3 +730,15 @@ html.mapfull, html.mapfull body { overflow: hidden; }
 .gps-auto input { margin-right: 6px; vertical-align: -2px; }
 
 #temp .dec { font-size: 0.55em; letter-spacing: 0; }
+
+/* Récord oficial batido hoy */
+#recbanner { display: none; -webkit-flex-shrink: 0; flex-shrink: 0; margin: 0 0 10px; padding: 10px 14px; border-radius: 14px; background: linear-gradient(90deg, rgba(255, 196, 61, 0.22), rgba(255, 196, 61, 0.08)); border: 1px solid #FFC43D; color: #FFF3D6; -webkit-align-items: center; align-items: center; }
+#recbanner.on { display: -webkit-flex; display: flex; }
+#recbanner.abs { border-color: #FF8A3D; background: linear-gradient(90deg, rgba(255, 138, 61, 0.3), rgba(255, 196, 61, 0.1)); }
+#recbanner .rb-ic { font-size: 28px; margin-right: 12px; }
+#recbanner .rb-l { font-size: 15px; line-height: 1.35; }
+#recbanner .rb-l span { color: #E9D7AE; font-size: 13px; }
+#recbanner .rb-s { font-size: 11px; color: #C9B88E; margin-top: 2px; }
+@media (max-width: 900px), (max-height: 560px) {
+  #recbanner { -webkit-order: 2; order: 2; margin: 10px 0 0; }
+}

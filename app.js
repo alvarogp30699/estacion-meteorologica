@@ -42,6 +42,7 @@
     meteocatUrl: def(C.meteocatUrl, 'meteocat.json'),
     climaUrl: def(C.climaUrl, 'clima.json'),
     histUrl: def(C.histUrl, 'historial.json'),
+    extUrl: def(C.extUrl, 'extremos.json'),
     alertsUrl: def(C.alertsUrl, 'avisos.json'),
     autoplay: C.autoplay === true,
     playLoops: C.playLoops || 3,
@@ -416,15 +417,17 @@
 
   /* ======================= Historial propio de la estación ======================= */
   var HIST = null;
+  var EXT = null;
   function loadHist() {
-    if (cfg.demo) { HIST = demoHist(); return; }
+    if (cfg.demo) { HIST = demoHist(); EXT = demoExt(); renderRecord(); return; }
+    if (cfg.extUrl) { getJSON(cfg.extUrl + '?t=' + Math.floor(Date.now() / 3600000), function (d) { if (d && d.rec) { EXT = d; renderRecord(); } }, function () { /* sin récords */ }); }
     if (!cfg.histUrl) { return; }
     getJSON(cfg.histUrl + '?t=' + Math.floor(Date.now() / 600000), function (d) {
       if (!d || !d.days) { return; }
       /* fuera los días calculados con pocas horas (salvo hoy): darían máximas y mínimas engañosas */
       var today = dkey(now()), clean = {};
       for (var k in d.days) { if (d.days.hasOwnProperty(k)) { var v = d.days[k]; if (v.src !== 'horas' || (v.n || 0) >= 18 || k === today) { clean[k] = v; } } }
-      d.days = clean; HIST = d;
+      d.days = clean; HIST = d; renderRecord();
     }, function () { /* sin historial */ });
   }
   function demoHist() {
@@ -490,6 +493,59 @@
     if (!keys.length || keys[0] > y + '-01-03') { return null; }
     var s = histStats(y + '-01-01', dkey(now()));
     return s.n >= doy(now()) - 6 ? s.rain : null;
+  }
+
+  /* ======================= Récords oficiales de la estación ======================= */
+  /* Compara lo medido hoy en la estación con los valores extremos oficiales de AEMET (por mes y absolutos) */
+  function demoExt() {
+    var m = now().getMonth(), t = [], tn = [], r = [], g = [], Y = [], D = [];
+    for (var i = 0; i < 13; i++) { t.push(i === m ? 17.5 : 30); tn.push(-3); r.push(90); g.push(120); Y.push('1985'); D.push('10'); }
+    return { rec: { tmax: t, tmaxD: D, tmaxY: Y, tmin: tn, tminD: D, tminY: Y, rain: r, rainD: D, rainY: Y, gust: g, gustD: D, gustY: Y } };
+  }
+  function measuredToday() {
+    if (!isHome || !STN || !obsFresh()) { return null; }
+    var k = dkey(now()), h = HIST && HIST.days ? HIST.days[k] : null, o = { tmax: null, tmin: null, rain: null, gust: null };
+    function mx(a, b) { return a == null ? b : (b == null ? a : Math.max(a, b)); }
+    function mn(a, b) { return a == null ? b : (b == null ? a : Math.min(a, b)); }
+    if (h) { o.tmax = h.tmax; o.tmin = h.tmin; o.gust = h.gust; }
+    o.tmax = mx(o.tmax, STN.temp); o.tmin = mn(o.tmin, STN.temp); o.gust = mx(o.gust, STN.gust); o.rain = STN.rain_today;
+    return o;
+  }
+  function recordState() {
+    var st = { broken: [], near: [] };
+    if (!EXT || !EXT.rec) { return st; }
+    var R = EXT.rec, me = measuredToday(); if (!me) { return st; }
+    var m = now().getMonth(), mes = MONTHS[m], name = (STN && STN.station) || 'la estación', y = String(now().getFullYear()), d = String(now().getDate());
+    var defs = [
+      { key: 'tmax', v: me.tmax, hi: true, what: 'calor', unit: '°', dec: 1, nearBy: function (v, r) { return v >= r - 0.5; } },
+      { key: 'tmin', v: me.tmin, hi: false, what: 'frío', unit: '°', dec: 1, nearBy: function (v, r) { return v <= r + 0.5; } },
+      { key: 'rain', v: me.rain, hi: true, what: 'lluvia en un día', unit: ' mm', dec: 1, nearBy: function (v, r) { return v >= r * 0.85; } },
+      { key: 'gust', v: me.gust, hi: true, what: 'racha de viento', unit: ' km/h', dec: 0, nearBy: function (v, r) { return v >= r * 0.92; } }];
+    for (var i = 0; i < defs.length; i++) {
+      var x = defs[i], arr = R[x.key];
+      if (x.v == null || !arr || arr[m] == null) { continue; }
+      function beats(idx) {
+        var r = arr[idx], ry = (R[x.key + 'Y'] || [])[idx], rd = (R[x.key + 'D'] || [])[idx];
+        if (r == null) { return false; }
+        if (String(ry) === y && String(rd) === d && (idx === m || String(R[x.key + 'M'] || '') === String(m + 1))) { return x.hi ? x.v >= r : x.v <= r; } // ya es el de hoy
+        return x.hi ? x.v > r : x.v < r;
+      }
+      function prev(idx) { var Y2 = (R[x.key + 'Y'] || [])[idx], D2 = (R[x.key + 'D'] || [])[idx]; return fmtNum(arr[idx], x.dec) + x.unit + (Y2 ? (idx < 12 && D2 ? ' el ' + D2 + ' de ' + mes + ' de ' + Y2 : ' en ' + Y2) : ''); }
+      var val = fmtNum(x.v, x.dec) + x.unit;
+      if (arr[12] != null && beats(12)) { st.broken.push({ abs: true, txt: 'Récord absoluto de ' + x.what + ' en ' + name + ': ' + val + ' hoy', prev: 'el anterior: ' + prev(12) }); }
+      else if (beats(m)) { st.broken.push({ abs: false, txt: 'Récord de ' + x.what + ' para un mes de ' + mes + ' en ' + name + ': ' + val + ' hoy', prev: 'el anterior: ' + prev(m) }); }
+      else if (x.nearBy(x.v, arr[m])) { st.near.push('Cerca del récord de ' + x.what + ' de ' + mes + ' en ' + name + ' (' + prev(m) + '; hoy ' + val + ')'); }
+    }
+    return st;
+  }
+  function renderRecord() {
+    var el = $('recbanner'); if (!el) { return; }
+    var st = recordState();
+    if (!st.broken.length) { el.className = ''; el.innerHTML = ''; return; }
+    var h = '';
+    for (var i = 0; i < st.broken.length; i++) { h += '<div class="rb-l"><b>' + esc(st.broken[i].txt) + '</b> <span>· ' + esc(st.broken[i].prev) + '</span></div>'; }
+    el.innerHTML = '<span class="rb-ic">🏆</span><div class="rb-t">' + h + '<div class="rb-s">Medido en la estación de AEMET · dato provisional hasta que AEMET lo valide</div></div>';
+    el.className = 'on' + (st.broken[0].abs ? ' abs' : '');
   }
 
   /* ======================= Fiabilidad: comparación de modelos ======================= */
@@ -717,8 +773,8 @@
     if (nt) { out.push(nt); }
     var ctm = W.daily.time[1] ? confFor(String(W.daily.time[1])) : null;
     if (ctm && ctm.lvl === 'baja' && (isEvening() || hr >= 14)) { out.push('Ojo: la previsión de mañana es poco fiable (' + ctm.why.toLowerCase() + ')'); }
-    var rc = todayRecord(0);
-    if (rc && rc.mx > -90 && !isEvening() && dl.temperature_2m_max[0] >= rc.mx - 0.5) { out.push('La máxima podría rozar el récord de un ' + parseLocal(dl.time[0] + 'T12:00').getDate() + ' de ' + MONTHS[parseLocal(dl.time[0] + 'T12:00').getMonth()] + ' (' + fmtNum(rc.mx, 1) + '° en ' + rc.mxY + ')'); }
+    var nr = recordState().near;
+    for (var nq = 0; nq < nr.length; nq++) { out.push(nr[nq]); }
     if (idx >= 24) {
       var dy = W.current.temperature_2m - h.temperature_2m[idx - 24];
       if (Math.abs(dy) >= 3) { out.push(Math.round(Math.abs(dy)) + '° ' + (dy > 0 ? 'más' : 'menos') + ' que ayer a esta hora'); }
@@ -1247,7 +1303,7 @@
   function loadObs() {
     if (cfg.demo || !cfg.obsUrl) { return; }
     var sep = cfg.obsUrl.indexOf('?') < 0 ? '?' : '&';
-    getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { STN = d; if (W) { renderWeather(W); } updateStatus(); }, function () { STN = null; });
+    getJSON(cfg.obsUrl + sep + 't=' + Date.now(), function (d) { STN = d; if (W) { renderWeather(W); } updateStatus(); renderRecord(); }, function () { STN = null; });
   }
   function obsFresh() {
     if (!isHome || !STN || !STN.time) { return false; }
