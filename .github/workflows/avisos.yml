@@ -51,6 +51,13 @@ jobs:
           ESTACION: "0016A"
           ESTACION_NOMBRE: "Reus aeropuerto"
         run: python3 tools/historial.py
+      - name: Récords oficiales de la estación (una vez a la semana)
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          ESTACION: "0016A"
+        run: python3 tools/extremos.py
       - name: Rayos del satélite MTG (necesita EUMETSAT_KEY y EUMETSAT_SECRET)
         continue-on-error: true
         timeout-minutes: 4
@@ -65,7 +72,7 @@ jobs:
           python3 tools/rayos.py
       - name: Guardar si ha cambiado
         run: |
-          for f in avisos.json meteocat.json clima.json observacion.json historial.json rayos.json; do [ -f "$f" ] && git add "$f"; done
+          for f in avisos.json meteocat.json clima.json observacion.json historial.json extremos.json rayos.json; do [ -f "$f" ] && git add "$f"; done
           if git diff --cached --quiet; then echo "Nada que guardar"; exit 0; fi
           git config user.name "avisos-bot"
           git config user.email "avisos-bot@users.noreply.github.com"
