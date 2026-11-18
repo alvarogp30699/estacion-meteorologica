@@ -742,3 +742,6 @@ html.mapfull, html.mapfull body { overflow: hidden; }
 @media (max-width: 900px), (max-height: 560px) {
   #recbanner { -webkit-order: 2; order: 2; margin: 10px 0 0; }
 }
+
+.cur-l { margin: 6px 0 4px; padding-left: 20px; font-size: 15px; line-height: 1.45; color: #DCE8FA; }
+.cur-l li { margin-bottom: 3px; }

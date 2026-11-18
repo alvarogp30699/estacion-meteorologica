@@ -495,6 +495,129 @@
     return s.n >= doy(now()) - 6 ? s.rain : null;
   }
 
+  /* ======================= Datos curiosos del día ======================= */
+  /* Frases que solo salen cuando toca: rachas, primeras veces, episodios de lluvia, rareza del día,
+     fechas del sol, hace un año y contadores. Cada una lleva una prioridad; el resumen enseña las dos mejores. */
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12); }
+  function hday(d) { return HIST && HIST.days ? HIST.days[dkey(d)] : null; }
+  function shortDate(k) { var d = parseLocal(k + 'T12:00'); return d.getDate() + ' de ' + MONTHS[d.getMonth()] + (d.getFullYear() !== now().getFullYear() ? ' de ' + d.getFullYear() : ''); }
+  function monthYear(k) { var d = parseLocal(k + 'T12:00'); return MONTHS[d.getMonth()] + (d.getFullYear() !== now().getFullYear() ? ' de ' + d.getFullYear() : ''); }
+  /* hoy: lo medido si lo hay (máx/mín hasta ahora) y si no, lo previsto */
+  function todayVals() {
+    if (!W) { return null; }
+    var me = measuredToday(), d0 = W.daily, hr = now().getHours();
+    var fmx = d0.temperature_2m_max[0], fmn = d0.temperature_2m_min[0];
+    return {
+      tmax: me && me.tmax != null && hr >= 16 ? me.tmax : (me && me.tmax != null ? Math.max(me.tmax, fmx) : fmx),
+      tmin: me && me.tmin != null && hr >= 9 ? me.tmin : fmn,
+      rain: me && me.rain != null ? me.rain : null,
+      measured: !!me
+    };
+  }
+  /* hora de salida y puesta del sol (fórmula de la NOAA, precisión de ~1 min) en minutos desde medianoche UTC */
+  function sunCalc(d) {
+    var rad = Math.PI / 180, n = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2000, 0, 1, 12)) / 86400000) + 1;
+    var Js = n - cfg.lon / 360, M = (357.5291 + 0.98560028 * Js) % 360, C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+    var lam = (M + C + 180 + 102.9372) % 360, Jt = 2451545 + Js + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
+    var dec = Math.asin(Math.sin(lam * rad) * Math.sin(23.44 * rad)), cosw = (Math.sin(-0.833 * rad) - Math.sin(cfg.lat * rad) * Math.sin(dec)) / (Math.cos(cfg.lat * rad) * Math.cos(dec));
+    var w = Math.acos(Math.max(-1, Math.min(1, cosw))) / rad, rise = (Jt - w / 360 - 2440587.5) * 86400000, set = (Jt + w / 360 - 2440587.5) * 86400000;
+    /* en hora UTC: así el cambio de hora de octubre y marzo no crea «extremos» falsos */
+    function loc(ms) { var t = new Date(ms); return t.getUTCHours() * 60 + t.getUTCMinutes() + t.getUTCSeconds() / 60; }
+    return { rise: loc(rise), set: loc(set), len: (set - rise) / 60000 };
+  }
+  function buildFacts() {
+    var F = [], n = now(), today = dkey(n), tv = todayVals(), i, d, v;
+    if (!tv) { return F; }
+    var hist = HIST && HIST.days ? HIST : null, hr = n.getHours();
+    /* --- 7. Fechas del sol (no dependen del historial) --- */
+    var sy = sunCalc(addDays(n, -1)), st = sunCalc(n), sm = sunCalc(addDays(n, 1));
+    if (st.set <= sy.set && st.set <= sm.set) { F.push({ p: 70, t: 'Hoy el sol se pone más pronto que ningún otro día del año; desde mañana, cada día un poco más tarde' }); }
+    if (st.rise >= sy.rise && st.rise >= sm.rise) { F.push({ p: 70, t: 'Hoy amanece más tarde que ningún otro día del año; desde mañana, cada día un poco antes' }); }
+    if (st.len <= sy.len && st.len <= sm.len) { F.push({ p: 80, t: 'Hoy es el día más corto del año: desde mañana los días se alargan' }); }
+    if (st.len >= sy.len && st.len >= sm.len) { F.push({ p: 80, t: 'Hoy es el día más largo del año: desde mañana los días se acortan' }); }
+    if (sy.len < 720 && st.len >= 720) { F.push({ p: 75, t: 'Desde hoy hay más de 12 horas de luz' }); }
+    if (sy.len >= 720 && st.len < 720) { F.push({ p: 75, t: 'Desde hoy hay menos de 12 horas de luz' }); }
+    /* --- 4. Cambios bruscos de mañana --- */
+    if (W.daily.temperature_2m_max[1] != null) {
+      var dd = W.daily.temperature_2m_max[1] - W.daily.temperature_2m_max[0];
+      if (Math.abs(dd) >= 6) { F.push({ p: 60, t: 'Cambio brusco: mañana la máxima ' + (dd < 0 ? 'bajará' : 'subirá') + ' unos ' + Math.round(Math.abs(dd)) + '° (' + Math.round(W.daily.temperature_2m_max[1]) + '°)' }); }
+    }
+    /* --- 6. Rareza del día (percentiles 1991–2020 para esta época) --- */
+    if (NORM && NORM.pmx) {
+      var q = doy(n), P = NORM.pmx, Q = NORM.pmn;
+      if (P['95'][q] != null && tv.tmax >= P['95'][q]) { F.push({ p: 65, t: 'Día excepcionalmente cálido: está entre el 5 % de días más calurosos para esta época (desde 1991)' }); }
+      else if (P['90'][q] != null && tv.tmax >= P['90'][q]) { F.push({ p: 45, t: 'Día muy cálido para la época: entre el 10 % más calurosos desde 1991' }); }
+      if (P['05'][q] != null && tv.tmax <= P['05'][q]) { F.push({ p: 65, t: 'Día excepcionalmente frío: entre el 5 % de días más fríos para esta época (desde 1991)' }); }
+      else if (P['10'][q] != null && tv.tmax <= P['10'][q]) { F.push({ p: 45, t: 'Día muy frío para la época: entre el 10 % más fríos desde 1991' }); }
+      if (Q['95'][q] != null && tv.tmin >= Q['95'][q]) { F.push({ p: 40, t: 'Noche excepcionalmente templada para la época (entre el 5 % más cálidas desde 1991)' }); }
+    }
+    if (!hist) { return F; }
+    /* días anteriores (de ayer hacia atrás) */
+    function back(fn, max) { var c = 0, x; for (var k = 1; k <= (max || 400); k++) { x = hday(addDays(n, -k)); if (!x || !fn(x)) { break; } c++; } return c; }
+    function lastSince(fn) { for (var k = 1; k <= 700; k++) { var dk = dkey(addDays(n, -k)), x = hist.days[dk]; if (x && fn(x)) { return { k: k, d: dk }; } } return null; }
+    var wetToday = tv.rain != null && tv.rain >= 1;
+    /* --- 1. Rachas --- */
+    var dry = back(function (x) { return x.rain != null && x.rain < 1; });
+    if (wetToday && dry >= 10) { F.push({ p: 85, t: 'Primer día de lluvia en ' + dry + ' días' }); }
+    else if (!wetToday && dry >= 7 && (hr >= 18 || (tv.rain != null && tv.rain < 1 && hr >= 12))) { F.push({ p: dry >= 20 ? 70 : 50, t: (dry + 1) + ' días seguidos sin llover (contando hoy)' }); }
+    var hot = (n.getMonth() >= 5 && n.getMonth() <= 8) ? 30 : 25;
+    if (tv.tmax >= hot) { var hs = back(function (x) { return x.tmax != null && x.tmax >= hot; }); if (hs >= 2) { F.push({ p: 55, t: (hs + 1) + '.º día seguido por encima de ' + hot + '°' }); } }
+    if (tv.tmin <= 5) { var cs = back(function (x) { return x.tmin != null && x.tmin <= 5; }); if (cs >= 2) { F.push({ p: 55, t: (cs + 1) + '.ª noche seguida por debajo de 5°' }); } }
+    /* --- 2. Primeras veces de la temporada (si hacía más de 2 meses) --- */
+    var firsts = [
+      { ok: tv.tmin < 0, fn: function (x) { return x.tmin != null && x.tmin < 0; }, t: 'Primera helada' },
+      { ok: tv.tmin < 5 && tv.tmin >= 0, fn: function (x) { return x.tmin != null && x.tmin < 5; }, t: 'Primera mínima por debajo de 5°' },
+      { ok: tv.tmin < 10 && tv.tmin >= 5, fn: function (x) { return x.tmin != null && x.tmin < 10; }, t: 'Primera mínima por debajo de 10°' },
+      { ok: tv.tmax >= 35, fn: function (x) { return x.tmax != null && x.tmax >= 35; }, t: 'Primer día de 35°' },
+      { ok: tv.tmax >= 30 && tv.tmax < 35, fn: function (x) { return x.tmax != null && x.tmax >= 30; }, t: 'Primer día de 30°' },
+      { ok: tv.tmax < 15, fn: function (x) { return x.tmax != null && x.tmax < 15; }, t: 'Primer día que no llega a 15°' },
+      { ok: tv.tmin >= 20, fn: function (x) { return x.tmin != null && x.tmin >= 20; }, t: 'Primera noche tropical (mínima de 20° o más)' }];
+    for (i = 0; i < firsts.length; i++) {
+      if (!firsts[i].ok) { continue; }
+      var ls = lastSince(firsts[i].fn);
+      if (!ls) { F.push({ p: 60, t: firsts[i].t + ' de tu historial' + (tv.measured ? '' : ' (previsto)') }); }
+      else if (ls.k > 60) { F.push({ p: 75, t: firsts[i].t + ' desde ' + monthYear(ls.d) + (tv.measured ? '' : ' (previsto)') }); }
+    }
+    /* --- 5. Episodio de lluvia (días seguidos con lluvia, incluido hoy) --- */
+    if (wetToday) {
+      var tot = tv.rain, start = today, k2;
+      for (k2 = 1; k2 <= 30; k2++) { var x2 = hday(addDays(n, -k2)); if (!x2 || x2.rain == null || x2.rain < 1) { break; } tot += x2.rain; start = dkey(addDays(n, -k2)); }
+      if (start !== today && tot >= 10) { F.push({ p: 72, t: 'Este episodio de lluvia lleva ' + mmTxt(tot) + ' mm desde el ' + shortDate(start) }); }
+    }
+    /* --- 8. Contadores del año --- */
+    var y = n.getFullYear(), trop = 0, trop1 = 0, rainy = 0, hot30 = 0;
+    for (var key in hist.days) {
+      if (!hist.days.hasOwnProperty(key)) { continue; }
+      v = hist.days[key];
+      if (key.slice(0, 4) === String(y)) { if (v.tmin != null && v.tmin >= 20) { trop++; } if (v.rain != null && v.rain >= 1) { rainy++; } if (v.tmax != null && v.tmax >= 30) { hot30++; } }
+      if (key.slice(0, 4) === String(y - 1) && v.tmin != null && v.tmin >= 20) { trop1++; }
+    }
+    if (tv.measured && tv.tmin >= 20 && hr >= 9) { F.push({ p: 50, t: 'Noche tropical n.º ' + trop + ' del año' + (trop > trop1 && trop1 ? ' (más que en todo ' + (y - 1) + ')' : '') }); }
+    function pl(nn, a, b) { return nn + ' ' + (nn === 1 ? a : b); }
+    F.push({ p: 5, t: 'En ' + y + ': ' + pl(rainy, 'día de lluvia', 'días de lluvia') + ', ' + pl(trop, 'noche tropical', 'noches tropicales') + ' y ' + pl(hot30, 'día de 30° o más', 'días de 30° o más'), panel: true });
+    /* --- 3. Hace un año --- */
+    var ly = hist.days[(y - 1) + today.slice(4)];
+    if (ly && ly.tmax != null) {
+      F.push({ p: 10, t: 'Hace un año (' + shortDate((y - 1) + today.slice(4)) + '): ' + fmtNum(ly.tmax, 1) + '° / ' + fmtNum(ly.tmin, 1) + '°' + (ly.rain >= 0.1 ? ' y ' + mmTxt(ly.rain) + ' mm' : ', sin lluvia'), panel: true });
+      if (Math.abs(tv.tmax - ly.tmax) >= 6) { F.push({ p: 35, t: 'Hoy ' + Math.round(Math.abs(tv.tmax - ly.tmax)) + '° ' + (tv.tmax > ly.tmax ? 'más' : 'menos') + ' de máxima que hace justo un año' }); }
+    }
+    return F;
+  }
+  function topFacts(nmax) {
+    var F = []; try { F = buildFacts(); } catch (e) { F = []; }
+    F = F.filter(function (f) { return !f.panel; }).sort(function (a, b) { return b.p - a.p; });
+    var out = []; for (var i = 0; i < F.length && i < nmax; i++) { out.push(F[i].t); }
+    return out;
+  }
+  function factsPanelHtml() {
+    var F = []; try { F = buildFacts(); } catch (e) { F = []; }
+    if (!F.length) { return ''; }
+    F.sort(function (a, b) { return b.p - a.p; });
+    var h = '<div class="al-k">Datos curiosos de hoy</div><ul class="cur-l">';
+    for (var i = 0; i < F.length; i++) { h += '<li>' + esc(F[i].t) + '</li>'; }
+    return h + '</ul>';
+  }
+
   /* ======================= Récords oficiales de la estación ======================= */
   /* Compara lo medido hoy en la estación con los valores extremos oficiales de AEMET (por mes y absolutos) */
   function demoExt() {
@@ -605,7 +728,7 @@
   /* ======================= Clima: normales (1991–2020), récords (desde 1940) y lluvia normal ======================= */
   /* Una sola petición grande a la API histórica de Open-Meteo (ERA5), guardada 60 días en la tablet */
   var NORM = null, YEAR = null, normTriedFile = false;
-  function normKey() { return 'estacion-clima-v2-' + (+cfg.lat).toFixed(1) + ',' + (+cfg.lon).toFixed(1); }
+  function normKey() { return 'estacion-clima-v3-' + (+cfg.lat).toFixed(1) + ',' + (+cfg.lon).toFixed(1); }
   function doy(d) { var s0 = new Date(d.getFullYear(), 0, 1); var k = Math.floor((d - s0) / 86400000); var leap = new Date(d.getFullYear(), 1, 29).getMonth() === 1; if (leap && k >= 59) { k--; } return Math.max(0, Math.min(364, k)); }
   function loadNormals() {
     if (cfg.demo) {
@@ -621,13 +744,13 @@
     }
     var c = null;
     try { c = JSON.parse(localStorage.getItem(normKey()) || 'null'); } catch (e) { c = null; }
-    if (c && c.mx && c.rmx && Date.now() - c.at < 60 * 86400000) { NORM = c; renderSummary(); }
+    if (c && c.mx && c.rmx && Date.now() - c.at < (c.pmx || !isHome ? 60 * 86400000 : 86400000)) { NORM = c; renderSummary(); }
     else if (isHome && cfg.climaUrl && !normTriedFile) {
       /* en casa: archivo ya calculado por GitHub (pocos KB) en vez de 80 años de datos */
       normTriedFile = true;
       getJSON(cfg.climaUrl + '?t=' + Math.floor(Date.now() / 86400000), function (d) {
         if (!d || !d.mx || !d.rmx) { loadNormals(); return; }
-        NORM = { at: Date.now(), mx: d.mx, mn: d.mn, rn: d.rn, rmx: d.rmx, rmxY: d.rmxY, rmn: d.rmn, rmnY: d.rmnY };
+        NORM = { at: Date.now(), mx: d.mx, mn: d.mn, rn: d.rn, rmx: d.rmx, rmxY: d.rmxY, rmn: d.rmn, rmnY: d.rmnY, pmx: d.pmx || null, pmn: d.pmn || null };
         try { localStorage.setItem(normKey(), JSON.stringify(NORM)); } catch (e) { /* sin espacio */ }
         renderSummary();
       }, function () { loadNormals(); });
@@ -775,6 +898,8 @@
     if (ctm && ctm.lvl === 'baja' && (isEvening() || hr >= 14)) { out.push('Ojo: la previsión de mañana es poco fiable (' + ctm.why.toLowerCase() + ')'); }
     var nr = recordState().near;
     for (var nq = 0; nq < nr.length; nq++) { out.push(nr[nq]); }
+    var tf = topFacts(2);
+    for (var tq = 0; tq < tf.length; tq++) { out.push(tf[tq]); }
     if (idx >= 24) {
       var dy = W.current.temperature_2m - h.temperature_2m[idx - 24];
       if (Math.abs(dy) >= 3) { out.push(Math.round(Math.abs(dy)) + '° ' + (dy > 0 ? 'más' : 'menos') + ' que ayer a esta hora'); }
@@ -1482,7 +1607,7 @@
       '<div class="dp-t"><div class="dp-n">Últimas 24 horas · ' + esc(src) + '</div><div class="dp-c">Temperatura <b>' + fmtNum(pts[imn].t, 1) + '° – ' + fmtNum(pts[imx].t, 1) + '°</b> · Lluvia <b>' + mmTxt(rsum) + ' mm</b></div></div>' +
       '<button type="button" class="dp-x" aria-label="Cerrar">×</button></div>' +
       '<svg class="hist" viewBox="0 0 ' + Wd + ' ' + Hd + '" preserveAspectRatio="none" aria-label="Gráfico de temperatura y lluvia de las últimas 24 horas">' + svg + '</svg>' +
-      histHtml() + recordsHtml() +
+      factsPanelHtml() + histHtml() + recordsHtml() +
       '<div class="dp-foot"><span class="k1"></span>temperatura · <span class="k2"></span>lluvia por hora (mm) · toca fuera para cerrar</div></div>';
     $('daypanel').innerHTML = html;
     $('daypanel').className = 'on';

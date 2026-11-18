@@ -18,7 +18,7 @@ def doy(d):
 def main():
     try:
         old = json.load(open(OUT, encoding="utf-8"))
-        if datetime.now(timezone.utc) - datetime.fromisoformat(old["updated"]) < timedelta(days=30) and old.get("lat") == float(LAT):
+        if datetime.now(timezone.utc) - datetime.fromisoformat(old["updated"]) < timedelta(days=30) and old.get("lat") == float(LAT) and old.get("v") == 2:
             print("clima.json al día")
             return
     except Exception:
@@ -29,6 +29,7 @@ def main():
     with urllib.request.urlopen(url, timeout=180) as r:
         D = json.load(r)["daily"]
     smx, smn, srn, cnt = [0.0] * 365, [0.0] * 365, [0.0] * 365, [0] * 365
+    vmx, vmn = [[] for _ in range(365)], [[] for _ in range(365)]  # valores 1991–2020 por día, para percentiles
     rmx, rmxY, rmn, rmnY = [-99.0] * 365, [0] * 365, [99.0] * 365, [0] * 365
     for t, a, b, p in zip(D["time"], D["temperature_2m_max"], D["temperature_2m_min"], D["precipitation_sum"]):
         if a is None or b is None:
@@ -41,6 +42,7 @@ def main():
             rmn[k], rmnY[k] = b, d.year
         if 1991 <= d.year <= 2020:
             smx[k] += a; smn[k] += b; srn[k] += p or 0; cnt[k] += 1
+            vmx[k].append(a); vmn[k].append(b)
     mx, mn, rn = [], [], []
     for q in range(365):
         tx = tn = tc = 0
@@ -50,7 +52,20 @@ def main():
         mx.append(round(tx / tc, 1) if tc else None)
         mn.append(round(tn / tc, 1) if tc else None)
         rn.append(round(srn[q] / cnt[q], 2) if cnt[q] else 0)
-    data = {"updated": datetime.now(timezone.utc).replace(microsecond=0).isoformat(), "lat": float(LAT), "lon": float(LON),
+    def pct(vals, q):
+        vals = sorted(vals)
+        if not vals:
+            return None
+        i = (len(vals) - 1) * q
+        lo = int(i); hi = min(lo + 1, len(vals) - 1)
+        return round(vals[lo] + (vals[hi] - vals[lo]) * (i - lo), 1)
+    pmx, pmn = {q: [] for q in ("05", "10", "90", "95")}, {q: [] for q in ("05", "10", "90", "95")}
+    for q in range(365):
+        wx = [x for w in range(-7, 8) for x in vmx[(q + w) % 365]]
+        wn = [x for w in range(-7, 8) for x in vmn[(q + w) % 365]]
+        for key in pmx:
+            pmx[key].append(pct(wx, int(key) / 100)); pmn[key].append(pct(wn, int(key) / 100))
+    data = {"v": 2, "pmx": pmx, "pmn": pmn, "updated": datetime.now(timezone.utc).replace(microsecond=0).isoformat(), "lat": float(LAT), "lon": float(LON),
             "mx": mx, "mn": mn, "rn": rn, "rmx": [round(v, 1) for v in rmx], "rmxY": rmxY, "rmn": [round(v, 1) for v in rmn], "rmnY": rmnY}
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(data, f, separators=(",", ":"))
