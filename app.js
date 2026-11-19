@@ -2985,11 +2985,12 @@
     if (!l || isNaN(+l.lat) || isNaN(+l.lon) || (+l.lat === 0 && +l.lon === 0)) { return; }
     /* a menos de 15 km de casa cuenta como casa (avisos de AEMET y estación de Reus siguen valiendo) */
     isHome = kmBetween(l, HOME) < 15;
-    cfg.name = isHome && !l.gps ? HOME.name : l.name; cfg.lat = +l.lat; cfg.lon = +l.lon;
+    /* el nombre es siempre el del sitio elegido (antes, un favorito cercano salía como «Salou») */
+    var atHome = !l.gps && kmBetween(l, HOME) < 0.5;
+    cfg.name = atHome ? HOME.name : (l.name || HOME.name); cfg.lat = +l.lat; cfg.lon = +l.lon;
     curIsGps = !!l.gps;
     $('place').innerHTML = (curIsGps ? '<span class="gps-ic">➤</span>' : '') + esc(cfg.name);
-    $('place').textContent = cfg.name;
-    $('place-home').className = isHome ? '' : 'on';
+    $('place-home').className = atHome ? '' : 'on';
     document.title = cfg.name + ' · Estación meteorológica';
     if (pinMarker) { pinMarker.setLatLng([cfg.lat, cfg.lon]); var nm = pinMarker.getElement() && pinMarker.getElement().querySelector('.name'); if (nm) { nm.textContent = cfg.name; } }
     userMoved = false; fixMapSize();
@@ -2998,14 +2999,14 @@
     loadWeather(); loadForecastGrid(); loadSea(); loadAir(); loadNormals(); loadModels();
     analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
     clearTimeout(awayTimer);
-    if (!isHome && !curIsGps && cfg.locReturnMin) { armAway(); }
+    if (!atHome && !curIsGps && cfg.locReturnMin) { armAway(); }
   }
   /* fuera de casa: vuelve sola a la ubicación principal tras unos minutos sin tocar */
   function armAway() {
     clearTimeout(awayTimer);
-    if (isHome || curIsGps || !cfg.locReturnMin) { return; }
+    if ((isHome && kmBetween({ lat: cfg.lat, lon: cfg.lon }, HOME) < 0.5) || curIsGps || !cfg.locReturnMin) { return; }
     /* vuelve a casa; en el móvil con «mi ubicación» activada, vuelve a donde estás */
-    awayTimer = setTimeout(function () { closeDay(); if (gpsAuto() && GPSLOC) { setLocation(GPSLOC); } else if (!isHome) { setLocation(HOME); } }, cfg.locReturnMin * 60000);
+    awayTimer = setTimeout(function () { closeDay(); if (gpsAuto() && GPSLOC) { setLocation(GPSLOC); } else { setLocation(HOME); } }, cfg.locReturnMin * 60000);
   }
 
   function locRow(l, kind) {
