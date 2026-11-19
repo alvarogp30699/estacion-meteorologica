@@ -1566,7 +1566,7 @@
     if (!cfg.demo && !cfg.alertsUrl) { afterAlertLayout(wasWide); return; }
     if (!isHome) {
       col.className = 'alert-banner on calm gray';
-      col.innerHTML = lineIcon(I_INFO, '#8494AF') + '<span class="calm-t">Viendo ' + esc(cfg.name) + ' · los avisos de AEMET, la estación y los rayos son de ' + esc(HOME.name) + '</span>';
+      col.innerHTML = lineIcon(I_INFO, '#8494AF') + '<span class="calm-t">Viendo ' + esc(cfg.name) + ' · los avisos de AEMET, la estación y los rayos son de ' + esc(BASE.name) + '</span>';
       placeSummary();
       afterAlertLayout(wasWide);
       return;
@@ -2936,7 +2936,15 @@
   }
 
   /* ======================= Ubicaciones: buscador y favoritos ======================= */
-  var HOME = { name: cfg.name, lat: cfg.lat, lon: cfg.lon, sub: 'Casa' }, isHome = true, awayTimer = null;
+  /* BASE: el sitio de la configuración (avisos de AEMET, estación y rayos son de aquí).
+     HOME: la «casa» de este dispositivo; por defecto la BASE, pero cada uno puede poner la suya (p. ej. Cambrils). */
+  var BASE = { name: cfg.name, lat: cfg.lat, lon: cfg.lon, sub: 'Casa' }, isHome = true, awayTimer = null;
+  var HOME = (function () { try { var h = JSON.parse(localStorage.getItem('estacion-casa') || 'null'); if (h && !isNaN(+h.lat) && !isNaN(+h.lon)) { h.sub = 'Casa'; return h; } } catch (e) { /* nada */ } return BASE; })();
+  function setHome(l) {
+    HOME = { name: l.name, lat: +l.lat, lon: +l.lon, sub: 'Casa' };
+    try { if (kmBetween(HOME, BASE) < 0.5) { localStorage.removeItem('estacion-casa'); HOME = BASE; } else { localStorage.setItem('estacion-casa', JSON.stringify(HOME)); } } catch (e) { /* nada */ }
+  }
+  function rememberLoc(l) { if (isFixedTablet()) { return; } try { localStorage.setItem('estacion-ultimo', JSON.stringify({ name: l.name, lat: +l.lat, lon: +l.lon, sub: l.sub || '', gps: !!l.gps })); } catch (e) { /* nada */ } }
 
   /* ======================= Mi ubicación (GPS) ======================= */
   /* En el móvil o el PC se usa por defecto la ubicación del dispositivo; la tablet fija sigue en casa */
@@ -2973,7 +2981,12 @@
       }, function () { /* sin nombre: se queda «Mi ubicación» */ });
     }, function (err) {
       gpsBusy = false;
-      var why = !err ? 'No se pudo obtener la ubicación' : (err.code === 1 ? 'Sin permiso de ubicación (Ajustes → Privacidad → Localización → Safari)' : (err.code === 3 ? 'La ubicación tardó demasiado' : 'Ubicación no disponible'));
+      var ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua), how;
+      if (ios && /CriOS/.test(ua)) { how = 'Ajustes del iPhone → Chrome → Ubicación → «Al usar la app», y recarga la página'; }
+      else if (ios) { how = 'Ajustes → Privacidad y seguridad → Localización → Sitios web de Safari → «Al usar la app», y recarga'; }
+      else if (/Android/.test(ua)) { how = 'activa la Ubicación del móvil y, en Chrome, toca el candado de la barra → Permisos → Ubicación → Permitir, y recarga'; }
+      else { how = 'permite la ubicación en el candado de la barra de direcciones y recarga'; }
+      var why = !err ? 'No se pudo obtener la ubicación' : (err.code === 1 ? 'Sin permiso de ubicación: ' + how : (err.code === 3 ? 'La ubicación tardó demasiado; prueba otra vez' : 'Ubicación no disponible (¿está activada la ubicación del móvil?)'));
       if (done) { done(false, why); }
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60000 });
   }
@@ -3021,7 +3034,8 @@
   function setLocation(l) {
     if (!l || isNaN(+l.lat) || isNaN(+l.lon) || (+l.lat === 0 && +l.lon === 0)) { return; }
     /* a menos de 15 km de casa cuenta como casa (avisos de AEMET y estación de Reus siguen valiendo) */
-    isHome = kmBetween(l, HOME) < 15;
+    isHome = kmBetween(l, BASE) < 15;
+    rememberLoc(l);
     /* el nombre es siempre el del sitio elegido (antes, un favorito cercano salía como «Salou») */
     var atHome = !l.gps && kmBetween(l, HOME) < 0.5;
     cfg.name = atHome ? HOME.name : (l.name || HOME.name); cfg.lat = +l.lat; cfg.lon = +l.lon;
@@ -3036,12 +3050,12 @@
     loadWeather(); loadForecastGrid(); loadSea(); loadAir(); loadNormals(); loadModels();
     analyzeRadar(); renderAlerts(); renderLightning(); updateStatus();
     clearTimeout(awayTimer);
-    if (!atHome && !curIsGps && cfg.locReturnMin) { armAway(); }
+    if (!atHome && !curIsGps && cfg.locReturnMin && isFixedTablet()) { armAway(); }
   }
   /* fuera de casa: vuelve sola a la ubicación principal tras unos minutos sin tocar */
   function armAway() {
     clearTimeout(awayTimer);
-    if ((isHome && kmBetween({ lat: cfg.lat, lon: cfg.lon }, HOME) < 0.5) || curIsGps || !cfg.locReturnMin) { return; }
+    if (kmBetween({ lat: cfg.lat, lon: cfg.lon }, HOME) < 0.5 || curIsGps || !cfg.locReturnMin || !isFixedTablet()) { return; } // solo la tablet fija vuelve sola
     /* vuelve a casa; en el móvil con «mi ubicación» activada, vuelve a donde estás */
     awayTimer = setTimeout(function () { closeDay(); if (gpsAuto() && GPSLOC) { setLocation(GPSLOC); } else { setLocation(HOME); } }, cfg.locReturnMin * 60000);
   }
@@ -3050,7 +3064,7 @@
     var fav = !!findFav(getFavs(), l), cur = Math.abs(l.lat - cfg.lat) < 0.01 && Math.abs(l.lon - cfg.lon) < 0.01;
     return '<div class="loc-row' + (cur ? ' cur' : '') + '" data-lat="' + l.lat + '" data-lon="' + l.lon + '" data-name="' + esc(l.name) + '" data-sub="' + esc(l.sub || '') + '">' +
       '<span class="loc-ic">' + (kind === 'home' ? '⌂' : '•') + '</span><div class="loc-tx"><div class="loc-n">' + esc(l.name) + '</div><div class="loc-s">' + esc(l.sub || '') + (cur ? ' · viendo ahora' : '') + '</div></div>' +
-      (kind === 'home' ? '' : '<button type="button" class="loc-star' + (fav ? ' on' : '') + '" aria-label="' + (fav ? 'Quitar de favoritos' : 'Añadir a favoritos') + '">' + (fav ? '★' : '☆') + '</button>') + '</div>';
+      (kind === 'home' ? '' : '<button type="button" class="loc-home" title="Poner como casa" aria-label="Poner como casa">⌂</button><button type="button" class="loc-star' + (fav ? ' on' : '') + '" aria-label="' + (fav ? 'Quitar de favoritos' : 'Añadir a favoritos') + '">' + (fav ? '★' : '☆') + '</button>') + '</div>';
   }
   function renderFavList() {
     var f = getFavs(), h = locRow(HOME, 'home');
@@ -3080,7 +3094,7 @@
       '<div id="loc-gps"></div>' +
       '<input id="loc-q" type="search" autocomplete="off" placeholder="Buscar ciudad o pueblo… (p. ej. Tarragona, Madrid)">' +
       '<div id="loc-res"></div><div class="al-k">Favoritos</div><div id="loc-favs"></div>' +
-      '<div class="dp-foot">' + (cfg.locReturnMin ? 'Si ves otro sitio, vuelve sola a ' + (gpsAuto() && GPSLOC ? 'tu ubicación' : esc(HOME.name)) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : '') + 'Los favoritos se guardan en este dispositivo</div></div>';
+      '<div class="dp-foot">Pulsa ⌂ en un sitio para ponerlo como casa · ' + (cfg.locReturnMin && isFixedTablet() ? 'Si ves otro sitio, vuelve sola a ' + esc(HOME.name) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : 'Se queda el último sitio que elijas · ') + 'Todo se guarda en este dispositivo</div></div>';
     renderFavList();
     renderGpsRow();
     $('daypanel').className = 'on';
@@ -3091,6 +3105,12 @@
   function onLocClick(t) {
     var g = t; while (g && g.id !== 'daypanel') { if (g.id === 'loc-gps') { return true; } g = g.parentNode; }
     /* estrella: guardar o quitar de favoritos */
+    if (t.className && String(t.className).indexOf('loc-home') >= 0) {
+      var rh = t.parentNode;
+      setHome({ name: rh.getAttribute('data-name'), lat: +rh.getAttribute('data-lat'), lon: +rh.getAttribute('data-lon') });
+      setLocation(HOME); closeDay();
+      return true;
+    }
     if (t.className && String(t.className).indexOf('loc-star') >= 0) {
       var r0 = t.parentNode, l0 = { name: r0.getAttribute('data-name'), lat: +r0.getAttribute('data-lat'), lon: +r0.getAttribute('data-lon'), sub: r0.getAttribute('data-sub') };
       var on = toggleFav(l0);
@@ -3173,8 +3193,13 @@
     initSatellite();
     initWind();
     /* móvil/PC: empieza en la ubicación del dispositivo (si das permiso); si no, en casa */
+    var last = null; try { last = JSON.parse(localStorage.getItem('estacion-ultimo') || 'null'); } catch (e) { last = null; }
+    if (!isFixedTablet() && !gpsAuto() && last && !last.gps) { setLocation(last); }
+    else if (!isFixedTablet() && HOME !== BASE && !gpsAuto()) { setLocation(HOME); }
     if (gpsAuto()) {
-      locateMe(true, function (ok, why) { if (!ok) { gpsNote = why + ' · se muestra ' + HOME.name; updateStatus(); setTimeout(function () { gpsNote = ''; updateStatus(); }, 20000); } });
+      if (last && !last.gps) { setLocation(last); }
+      else if (HOME !== BASE) { setLocation(HOME); }
+      locateMe(!(last && !last.gps), function (ok, why) { if (!ok) { gpsNote = why + ' · se muestra ' + cfg.name; updateStatus(); setTimeout(function () { gpsNote = ''; updateStatus(); }, 20000); } });
       var lastLoc = Date.now();
       document.addEventListener('visibilitychange', function () { if (!document.hidden && gpsAuto() && (curIsGps || isHome) && Date.now() - lastLoc > 30 * 60000) { lastLoc = Date.now(); locateMe(true); } });
     }
