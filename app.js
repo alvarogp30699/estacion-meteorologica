@@ -2949,7 +2949,12 @@
   /* ======================= Mi ubicación (GPS) ======================= */
   /* En el móvil o el PC se usa por defecto la ubicación del dispositivo; la tablet fija sigue en casa */
   var GPSLOC = null, curIsGps = false, gpsBusy = false, gpsNote = '';
-  function isFixedTablet() { return !!window.fully || /Android [4-7]/.test(navigator.userAgent); }
+  /* ¿pantalla fija en la pared? Se puede marcar a mano en el panel de ubicaciones; si no, se deduce (Fully Kiosk o Android antiguo) */
+  function isFixedTablet() {
+    var v = null; try { v = localStorage.getItem('estacion-fija'); } catch (e) { v = null; }
+    if (v === '1') { return true; } if (v === '0') { return false; }
+    return !!window.fully || /Android [4-7]/.test(navigator.userAgent);
+  }
   function gpsAuto() {
     var v = null; try { v = localStorage.getItem('estacion-gps'); } catch (e) { v = null; }
     if (v === '1') { return true; } if (v === '0') { return false; }
@@ -3094,9 +3099,11 @@
       '<div id="loc-gps"></div>' +
       '<input id="loc-q" type="search" autocomplete="off" placeholder="Buscar ciudad o pueblo… (p. ej. Tarragona, Madrid)">' +
       '<div id="loc-res"></div><div class="al-k">Favoritos</div><div id="loc-favs"></div>' +
+      '<label class="gps-auto"><input type="checkbox" id="fixed-dev"' + (isFixedTablet() ? ' checked' : '') + '> Pantalla fija (como la tablet de la pared): vuelve sola a casa a los ' + cfg.locReturnMin + ' min</label>' +
       '<div class="dp-foot">Pulsa ⌂ en un sitio para ponerlo como casa · ' + (cfg.locReturnMin && isFixedTablet() ? 'Si ves otro sitio, vuelve sola a ' + esc(HOME.name) + ' a los ' + cfg.locReturnMin + ' min sin tocar · ' : 'Se queda el último sitio que elijas · ') + 'Todo se guarda en este dispositivo</div></div>';
     renderFavList();
     renderGpsRow();
+    $('fixed-dev').onchange = function () { try { localStorage.setItem('estacion-fija', this.checked ? '1' : '0'); } catch (e) { /* nada */ } clearTimeout(awayTimer); if (this.checked) { armAway(); } };
     $('daypanel').className = 'on';
     clearTimeout(dayTimer);
     var q = $('loc-q');
@@ -3194,7 +3201,8 @@
     initWind();
     /* móvil/PC: empieza en la ubicación del dispositivo (si das permiso); si no, en casa */
     var last = null; try { last = JSON.parse(localStorage.getItem('estacion-ultimo') || 'null'); } catch (e) { last = null; }
-    if (!isFixedTablet() && !gpsAuto() && last && !last.gps) { setLocation(last); }
+    if (isFixedTablet() && HOME !== BASE) { setLocation(HOME); }
+    else if (!isFixedTablet() && !gpsAuto() && last && !last.gps) { setLocation(last); }
     else if (!isFixedTablet() && HOME !== BASE && !gpsAuto()) { setLocation(HOME); }
     if (gpsAuto()) {
       if (last && !last.gps) { setLocation(last); }
