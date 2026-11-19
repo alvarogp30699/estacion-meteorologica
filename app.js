@@ -3200,6 +3200,15 @@
     initSatellite();
     initWind();
     /* móvil/PC: empieza en la ubicación del dispositivo (si das permiso); si no, en casa */
+    /* Configurar por la dirección web (útil para dejarla puesta en Fully o en favoritos del navegador):
+       ?casa=Cambrils (busca el pueblo) · ?name=Cambrils&lat=41.07&lon=1.06 (sitio exacto) · ?fija=1 o ?fija=0 */
+    if (Q.fija === '1' || Q.fija === '0') { try { localStorage.setItem('estacion-fija', Q.fija); } catch (e) { /* nada */ } }
+    if (Q.casa) {
+      getJSON('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(Q.casa) + '&count=1&language=es&format=json', function (d) {
+        var r = d && d.results && d.results[0];
+        if (r) { setHome({ name: r.name, lat: +r.latitude.toFixed(4), lon: +r.longitude.toFixed(4) }); setLocation(HOME); }
+      }, function () { /* sin buscador */ });
+    }
     var last = null; try { last = JSON.parse(localStorage.getItem('estacion-ultimo') || 'null'); } catch (e) { last = null; }
     if (isFixedTablet() && HOME !== BASE) { setLocation(HOME); }
     else if (!isFixedTablet() && !gpsAuto() && last && !last.gps) { setLocation(last); }
