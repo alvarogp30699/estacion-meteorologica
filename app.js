@@ -1054,7 +1054,7 @@
         windCv = document.createElement('canvas'); windCv.className = 'wind-cv';
         map.getPane('wind').appendChild(windCv); windCtx = windCv.getContext('2d');
       }
-      windCv.style.display = 'block'; placeWindCanvas();
+      windCv.style.display = 'block'; placeWindCanvas(); loadWideWind();
       if (!windRun) { windRun = true; windGen++; windLoop(windGen); }
     } else {
       windRun = false;
@@ -1068,6 +1068,41 @@
     windCv.style.width = sz.x + 'px'; windCv.style.height = sz.y + 'px';
     L.DomUtil.setPosition(windCv, map.containerPointToLayerPoint([0, 0]));
     windParts = [];
+  }
+  /* Rejilla gruesa para toda la península y Baleares (cada 1,5°), solo para el viento animado:
+     así se ven líneas aunque muevas el mapa lejos de casa. Se pide al encender el viento y se guarda 3 h. */
+  var WIDE = { lat0: 45.5, lon0: -9.5, rows: 8, cols: 12, d: 1.5 }, WIDELIST = null, wideBusy = false;
+  function loadWideWind() {
+    if (wideBusy || cfg.demo) { return; }
+    var key = 'estacion-viento-amplio', c = null;
+    try { c = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { c = null; }
+    if (c && c.list && Date.now() - c.at < 3 * 3600000) { WIDELIST = c.list; windFieldDirty = true; return; }
+    var la = [], lo = [], r, k;
+    for (r = 0; r < WIDE.rows; r++) { for (k = 0; k < WIDE.cols; k++) { la.push((WIDE.lat0 - r * WIDE.d).toFixed(2)); lo.push((WIDE.lon0 + k * WIDE.d).toFixed(2)); } }
+    wideBusy = true;
+    getJSON('https://api.open-meteo.com/v1/forecast?latitude=' + la.join(',') + '&longitude=' + lo.join(',') + '&hourly=wind_speed_10m,wind_direction_10m&forecast_hours=6&timeformat=unixtime&timezone=GMT', function (d) {
+      wideBusy = false;
+      if (!d || !d.length || !d[0].hourly) { return; }
+      var out = [];
+      for (var t = 0; t < d[0].hourly.time.length; t++) {
+        var ws = [], wd = [];
+        for (var p2 = 0; p2 < d.length; p2++) { ws.push(Math.round(d[p2].hourly.wind_speed_10m[t] || 0)); wd.push(Math.round(d[p2].hourly.wind_direction_10m[t] || 0)); }
+        out.push({ time: d[0].hourly.time[t], ws: ws, wd: wd });
+      }
+      WIDELIST = out; windFieldDirty = true;
+      try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), list: out })); } catch (e) { /* sin espacio */ }
+    }, function () { wideBusy = false; });
+  }
+  function wideAt(lat, lon) {
+    if (!WIDELIST || !WIDELIST.length) { return null; }
+    var t = Date.now() / 1000, entry = WIDELIST[0];
+    for (var k = 0; k < WIDELIST.length; k++) { if (WIDELIST[k].time <= t + 1800) { entry = WIDELIST[k]; } }
+    var gy = (WIDE.lat0 - lat) / WIDE.d, gx = (lon - WIDE.lon0) / WIDE.d;
+    if (gx < 0 || gy < 0 || gx > WIDE.cols - 1 || gy > WIDE.rows - 1) { return null; }
+    var c0 = Math.floor(gx), r0 = Math.floor(gy), c1 = Math.min(c0 + 1, WIDE.cols - 1), r1 = Math.min(r0 + 1, WIDE.rows - 1), tx = gx - c0, ty = gy - r0;
+    function uv(r, c) { var i = r * WIDE.cols + c, sp = entry.ws[i], dd = entry.wd[i] * Math.PI / 180; return [-sp * Math.sin(dd), -sp * Math.cos(dd)]; }
+    var a = uv(r0, c0), b = uv(r0, c1), c = uv(r1, c0), e = uv(r1, c1);
+    return [(a[0] * (1 - tx) + b[0] * tx) * (1 - ty) + (c[0] * (1 - tx) + e[0] * tx) * ty, (a[1] * (1 - tx) + b[1] * tx) * (1 - ty) + (c[1] * (1 - tx) + e[1] * tx) * ty];
   }
   /* viento (u, v en km/h) en un punto, interpolado en la rejilla */
   function windAt(entry, lat, lon) {
@@ -1084,13 +1119,14 @@
   /* campo en pantalla cada 20 px (se recalcula al mover el mapa o al cambiar de hora) */
   function buildWindField() {
     windFieldDirty = false; windField = null;
-    if (!GRIDLIST || !GRIDLIST.length || !GRIDLIST[0].ws) { return; }
-    var t = Date.now() / 1000, entry = GRIDLIST[0];
-    for (var k = 0; k < GRIDLIST.length; k++) { if (GRIDLIST[k].time <= t + 1800) { entry = GRIDLIST[k]; } }
+    var t = Date.now() / 1000, entry = null;
+    if (GRIDLIST && GRIDLIST.length && GRIDLIST[0].ws) { entry = GRIDLIST[0]; for (var k = 0; k < GRIDLIST.length; k++) { if (GRIDLIST[k].time <= t + 1800) { entry = GRIDLIST[k]; } } }
+    if (!entry && !WIDELIST) { return; }
     var sz = map.getSize(), S = 20, cols = Math.ceil(sz.x / S) + 1, rows = Math.ceil(sz.y / S) + 1, f = [];
     for (var r = 0; r < rows; r++) {
       for (var c = 0; c < cols; c++) {
-        var ll = map.containerPointToLatLng([c * S, r * S]), w = windAt(entry, ll.lat, ll.lng);
+        var ll = map.containerPointToLatLng([c * S, r * S]), w = entry ? windAt(entry, ll.lat, ll.lng) : null;
+        if (!w) { w = wideAt(ll.lat, ll.lng); }
         f.push(w ? [w[0], -w[1], Math.sqrt(w[0] * w[0] + w[1] * w[1])] : null);
       }
     }
@@ -1107,6 +1143,7 @@
     var lowMem = LOWMEM, tnow = Date.now();
     if (!document.hidden && !windMoving && tnow - windLast >= (lowMem ? 45 : 33)) {
       windLast = tnow;
+      if (windField && windField.hour !== Math.floor(tnow / 3600000)) { loadWideWind(); }
       if (windFieldDirty || !windField || windField.hour !== Math.floor(tnow / 3600000)) { buildWindField(); }
       if (windField) {
         var W2 = windCv.width, H2 = windCv.height, N = Math.round(W2 * H2 / (lowMem ? 900 : 1600)), ctx = windCtx, k, p, R = lowMem ? 0.5 : 1;
