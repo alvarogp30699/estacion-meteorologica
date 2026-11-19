@@ -1,26 +1,5 @@
 {
- "updated": "2026-11-19T04:28:59+00:00",
- "zone": "Costa - Litoral sur de Tarragona",
- "alerts": [
-  {
-   "level": "amarillo",
-   "event": "Fenómenos costeros",
-   "detail": "Viento del suroeste de 50 a 60 km/h (fuerza 7), girando a oeste por la mañana, y olas de 2",
-   "description": "Viento del suroeste de 50 a 60 km/h (fuerza 7), girando a oeste por la mañana, y olas de 2 a 3 m.",
-   "instruction": "Esté atento. Manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños moderados a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
-   "headline": "Aviso de costeros de nivel amarillo. Costa - Litoral sur de Tarragona",
-   "onset": "2026-11-18T22:00:00+01:00",
-   "expires": "2026-11-19T13:59:59+01:00"
-  },
-  {
-   "level": "amarillo",
-   "event": "Viento",
-   "detail": "Rachas máximas: 70 km/h",
-   "description": "Rachas máximas: 70 km/h. Viento del oeste y suroeste. El aviso del prelitoral de Barcelona se refiere al extremo suroccidental.",
-   "instruction": "Esté atento. Manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños moderados a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
-   "headline": "Aviso de vientos de nivel amarillo. Prelitoral sur de Tarragona",
-   "onset": "2026-11-19T00:00:00+01:00",
-   "expires": "2026-11-19T09:59:59+01:00"
-  }
- ]
+ "updated": "2026-11-19T13:50:43+00:00",
+ "zone": "Litoral sur de Tarragona",
+ "alerts": []
 }
