@@ -275,6 +275,8 @@
       $('range').textContent += (AIR.aqi >= 60 ? ' · Aire ' + aqiTxt(AIR.aqi).toLowerCase() : '') + (AIR.pollen && AIR.pollen.level === 2 ? ' · Polen alto' : '');
     }
     $('rain-l').textContent = rainSource === 'estación' ? 'Llovido hoy' : (rainSource === 'radar' ? 'Llovido hoy · radar' : 'Llovido hoy · modelo');
+    /* el viento del modelo en la costa a veces sale casi a cero: que se vea de dónde sale el dato */
+    if ($('wind-l')) { $('wind-l').textContent = obsFresh() && STN && STN.wind != null ? 'Viento · ' + String(STN.station || 'estación').replace(' aeropuerto', '') : 'Viento · modelo'; }
     renderSun(dl);
     renderEvening(d);
     renderHours(d, idx);
