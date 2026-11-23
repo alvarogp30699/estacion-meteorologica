@@ -1,0 +1,43 @@
+name: Reloj (lanza la descarga de datos cada 15 min)
+
+# GitHub no respeta la programación cada 15 min de las tareas en cuentas gratuitas (a veces pasan horas).
+# Esta tarea se queda encendida casi 6 h lanzando «avisos.yml» cada 15 min y, al acabar, se relanza sola.
+# La programación horaria de abajo solo sirve de respaldo por si la cadena se corta.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: reloj
+  cancel-in-progress: false
+
+jobs:
+  reloj:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Lanzar la descarga cada 15 minutos
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          fin=$(( $(date +%s) + 340*60 ))
+          while [ "$(date +%s)" -lt "$fin" ]; do
+            echo "$(date -u +%H:%M) lanzando avisos.yml"
+            gh workflow run avisos.yml -R "$REPO" --ref main || echo "fallo al lanzar (se reintenta en 15 min)"
+            # espera hasta el siguiente cuarto de hora (:00, :15, :30, :45) + 30 s
+            ahora=$(date +%s); sig=$(( (ahora / 900 + 1) * 900 + 30 ))
+            [ "$sig" -ge "$fin" ] && break
+            sleep $(( sig - ahora ))
+          done
+      - name: Relanzarse para seguir otras 6 horas
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run reloj.yml -R "$REPO" --ref main
