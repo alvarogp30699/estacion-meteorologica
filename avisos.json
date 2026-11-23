@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-23T22:30:37+00:00",
+ "updated": "2026-11-23T23:15:37+00:00",
  "zone": "Prelitoral sur de Tarragona",
  "alerts": [
   {
@@ -11,6 +11,16 @@
    "headline": "Aviso de vientos de nivel amarillo. Prelitoral sur de Tarragona",
    "onset": "2026-11-25T12:00:00+01:00",
    "expires": "2026-11-25T23:59:59+01:00"
+  },
+  {
+   "level": "amarillo",
+   "event": "Viento",
+   "detail": "Rachas máximas: 70 km/h",
+   "description": "Rachas máximas: 70 km/h. Viento del noroeste.",
+   "instruction": "Esté atento. Manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños moderados a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
+   "headline": "Aviso de vientos de nivel amarillo. Prelitoral sur de Tarragona",
+   "onset": "2026-11-26T00:00:00+01:00",
+   "expires": "2026-11-26T11:59:59+01:00"
   }
  ]
 }
