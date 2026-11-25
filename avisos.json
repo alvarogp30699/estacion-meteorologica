@@ -1,24 +1,34 @@
 {
- "updated": "2026-11-25T09:00:37+00:00",
+ "updated": "2026-11-25T10:00:37+00:00",
  "zone": "Prelitoral sur de Tarragona",
  "alerts": [
   {
    "level": "amarillo",
    "event": "Viento",
    "detail": "Rachas máximas: 70 km/h",
-   "description": "Rachas máximas: 70 km/h. Viento del noroeste.",
+   "description": "Rachas máximas: 70 km/h. Viento del oeste.",
    "instruction": "Esté atento. Manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños moderados a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
    "headline": "Aviso de vientos de nivel amarillo. Prelitoral sur de Tarragona",
    "onset": "2026-11-25T12:00:00+01:00",
-   "expires": "2026-11-25T23:59:59+01:00"
+   "expires": "2026-11-26T11:59:59+01:00"
   },
   {
    "level": "amarillo",
-   "event": "Viento",
-   "detail": "Rachas máximas: 80 km/h",
-   "description": "Rachas máximas: 80 km/h. Viento del noroeste.",
+   "event": "Fenómenos costeros",
+   "detail": "Viento del Noroeste de 50 a 61 km/h (fuerza 7)",
+   "description": "Viento del Noroeste de 50 a 61 km/h (fuerza 7).",
    "instruction": "Esté atento. Manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños moderados a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
-   "headline": "Aviso de vientos de nivel amarillo. Litoral sur de Tarragona",
+   "headline": "Aviso de costeros de nivel amarillo. Costa - Litoral sur de Tarragona",
+   "onset": "2026-11-26T00:00:00+01:00",
+   "expires": "2026-11-26T23:59:59+01:00"
+  },
+  {
+   "level": "naranja",
+   "event": "Viento",
+   "detail": "Rachas máximas: 90 km/h",
+   "description": "Rachas máximas: 90 km/h. Viento del noroeste.",
+   "instruction": "Esté preparado. Tome precauciones y manténgase informado de la predicción meteorológica más actualizada. Se pueden producir daños graves a personas y bienes, especialmente a aquellos vulnerables o en zonas expuestas al fenómeno.",
+   "headline": "Aviso de vientos de nivel naranja. Prelitoral sur de Tarragona",
    "onset": "2026-11-26T00:00:00+01:00",
    "expires": "2026-11-26T11:59:59+01:00"
   }
