@@ -294,6 +294,7 @@
   }
 
   /* Lluvia en la próxima hora (datos cada 15 min; en España se interpolan del modelo horario) */
+  var dryNow = false;
   function renderNextHour(d) {
     var el = $('nexthour');
     var m = d.minutely_15, steps = [];
@@ -305,6 +306,7 @@
     if (!steps.length) { el.className = 'nh hidden'; return; }
 
     var WET = 0.05; // mm en 15 min
+    dryNow = steps[0] < WET && steps.length > 1 && steps[1] < WET && !(radarHere && radarHere.wet);
     function run(from) { var c = 0; while (from + c < steps.length && steps[from + c] >= WET) { c++; } return c; }
     function intensity(from, len) {
       var mx = 0;
@@ -881,9 +883,9 @@
     var h = W.hourly, dl = W.daily, idx = hourIndex(h, W.current), n = now(), hr = n.getHours(), out = [], sp, nt = '';
     if (!isEvening()) {
       var end = lastIdxOfDay(String(dl.time[0]));
-      sp = describeSpan(idx, end, false);
+      sp = describeSpan(dryNow ? Math.min(idx + 1, end) : idx, end, false);
       var head = hr < 13 ? 'Hoy' : 'Esta tarde';
-      out.push(head + ': ' + spanText(sp, idx, end) + (hr < 15 ? ', máxima de ' + Math.round(dl.temperature_2m_max[0]) + '°' : ''));
+      out.push(head + ': ' + spanText(sp, dryNow ? Math.min(idx + 1, end) : idx, end) + (hr < 15 ? ', máxima de ' + Math.round(dl.temperature_2m_max[0]) + '°' : ''));
       nt = normalTxt(0, 'Máxima de hoy');
       if (hr >= 14) { out.push(tomorrowPhrase(1)); }
     } else {
